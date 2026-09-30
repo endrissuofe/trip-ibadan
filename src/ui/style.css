@@ -190,7 +190,7 @@ input[type=range] { accent-color: var(--blue); }
 .gear[data-g=R].on { background: #e8ecef; color: #0b151d; }
 .clock { position: absolute; left: 50%; transform: translateX(-50%); top: calc(84px + var(--safe-t)); padding: 4px 12px; display: flex; gap: 10px; align-items: baseline; font-weight: 800; font-variant-numeric: tabular-nums; }
 .clock small { color: var(--muted); font-weight: 600; }
-@media (pointer: coarse) { .gearbox { top: auto; bottom: calc(150px + var(--safe-b)); right: calc(12px + var(--safe-r)); flex-direction: row; } .gear { width: 44px; height: 44px; } }
+@media (pointer: coarse) { .gearbox { top: auto; right: auto; bottom: calc(16px + var(--safe-b)); left: calc(196px + var(--safe-l)); flex-direction: row; padding: 4px; } .gear { width: 40px; height: 40px; } }
 
 /* passenger list, fare panel, dispute card (change spec §8, §12, §13) */
 .manifest { position: absolute; left: calc(16px + var(--safe-l)); top: calc(262px + var(--safe-t)); width: 290px; max-height: calc(100vh - 380px); overflow-y: auto; padding: 8px 10px; font-size: 12.5px; }
@@ -207,7 +207,12 @@ input[type=range] { accent-color: var(--blue); }
 .txn.on, .dispute.on { display: block; }
 .dispute { border-color: #8a6a22; z-index: 3; }
 .txn.on + .dispute.on { top: calc(250px + var(--safe-t)); }
-@media (pointer: coarse) { .txn, .dispute { right: calc(12px + var(--safe-r)); top: calc(100px + var(--safe-t)); } }
+@media (pointer: coarse) {
+  .txn, .dispute { right: auto; left: 50%; transform: translateX(-50%); top: calc(64px + var(--safe-t)); width: min(320px, 46vw); padding: 8px 10px; font-size: 12px; }
+  .txn .kv { padding: 2px 0; font-size: 12px; }
+  .row2 { margin-top: 5px; gap: 6px; } .row2 .btn { min-height: 36px; padding: 6px 8px; font-size: 11px; }
+  .dispute .muted { display: none; }
+}
 .txn .kv { padding: 5px 0; font-size: 14px; }
 .row2 { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .row2 .btn { flex: 1; padding: 10px 12px; min-height: 42px; font-size: 13px; }

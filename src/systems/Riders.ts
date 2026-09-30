@@ -128,7 +128,10 @@ export class Riders {
       if (r.hitCd <= 0 && Math.abs(lx) < p.halfWid + 0.35 && Math.abs(lz) < p.halfLen + 0.8) {
         const rvx = Math.sin(r.heading) * r.v - Math.sin(p.heading) * p.v, rvz = Math.cos(r.heading) * r.v - Math.cos(p.heading) * p.v;
         const kmh = Math.hypot(rvx, rvz) * 3.6;
-        if (kmh > 6) {
+        if (kmh > 6 && Math.abs(p.v) < 1.5) {
+          // the rider ran into a stationary vehicle: not the player's fault, no penalty
+          r.v = 0; r.hitCd = 2;
+        } else if (kmh > 6) {
           r.down = 7; r.mesh.rotation.z = 1.35; r.hitCd = 3;
           hits.push({ brand: r.brand.name, kmh });
           p.collide(p.v * 0.8, 0, Math.min(kmh, 20), 'rider');
