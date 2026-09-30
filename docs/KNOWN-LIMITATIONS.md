@@ -22,9 +22,19 @@ What is simulated rather than physically or geographically accurate.
 - **Gridlocks** are fixed at Berger, Kara and Arepo. Their positions are real notorious spots, but the timing and length are game design.
 - Streets are drivable only on the right-hand side of the northbound carriageway (the median barrier blocks the other side). There's no street traffic except riders.
 
+## Change-spec pass (Oct 2026)
+- **Vehicles and people are still procedural stand-ins**, not photoreal. People are much more human (faces, hair, clothing, variety, walking and sitting) but are not rigged models. Real GLB vehicles load through `public/models/manifest.json`; characters need the `HumanFactory` swap (see ASSET-CONTRACT.md).
+- **The route is still Ojota → Mowe (24 km).** Sagamu, Ogere and Ibadan (Iwo Road) need the map pipeline re-run with wider bounding boxes (see TECHNICAL.md, "Adding the next leg").
+- **Pace:** at Normal (3×) cruising looks fast because the vehicle really covers the road 3× faster. Clock scale and travel scale are separate numbers in `src/systems/GameClock.ts` if they need different values.
+- **Seated passengers are static poses** (no head turns or hand-raising yet). The conductor's hand-over is an arm swing plus a flying note, not a hand-to-hand animation.
+- **Rear-view display** is a small camera view, not a mirrored image. It's off on Low graphics.
+- **Passenger mood** reacts to ride comfort, long stops, missed stops and disputes. Music, weather and traffic don't affect it yet.
+- **Dialogue is text only** (no voices). Yoruba lines should be checked by a native speaker.
+- The Sienna now seats 6 passengers because the conductor takes the front seat.
+
 ## Driving / systems
-- **Vehicle physics** is an arcade-leaning free-driving model (kinematic steering, no tyre slip or suspension). The map ends 318 m either side of the expressway, because terrain is only baked that far.
-- **Fuel** consumption is scaled ×10 (`FUEL_GAME_SCALE`), so the 24 km Ojota → Mowe run uses about 35–50% of a tank. Real consumption would be about 4%.
+- **Vehicle physics** is an arcade-leaning free-driving model (kinematic steering, no tyre slip or suspension). Gears are P/R/N/D (automatic); there is no manual gearbox. The map ends 318 m either side of the expressway, because terrain is only baked that far.
+- **Fuel** consumption is scaled ×10 (`FUEL_GAME_SCALE`) per real metre driven, so the 24 km Ojota → Mowe run uses about 35–50% of a tank whatever the pace setting. Real consumption would be about 4%.
 - **Damage** is a single condition value with no visual deformation.
 - **Traffic AI** is simplified IDM/MOBIL: no indicators, no reversing, and it doesn't react to the player's lateral drift until overlap.
 - **Road events** are fixed positions from `src/data/trips.ts`. The police checkpoint is a speed check only (no stop/talk interaction yet).

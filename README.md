@@ -20,6 +20,12 @@ Open the printed URL (use the `Network` address on your phone, on the same Wi-Fi
 npm run build
 ```
 
+```bash
+npm test
+```
+
+Unit tests for fares, change and dialogue (needs Node 22.6 or newer).
+
 `dist/` is a static site: host it anywhere (Vercel, Netlify, GitHub Pages, Cloudflare Pages). See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 ## Controls
@@ -28,15 +34,21 @@ npm run build
 |---|---|---|
 | Steer | ◀ ▶ buttons (or tilt, in Settings) | A / D or ← → |
 | Accelerate | ACCEL | W or ↑ |
-| Brake / reverse | BRAKE (hold at a standstill to reverse) | S or ↓ |
+| Brake | BRAKE | S or ↓ |
+| Gear (P R N D) | P R N D buttons | E / Q step up/down · R reverse · N neutral |
+| Indicators · hazards | | Z / X · H |
+| Look back | 👀 (hold) | B (hold) |
+| Camera (chase / driver / cabin) | 🎥 | C |
+| Passenger list | 📋 | M |
+| Take fare / give change (manual fares) | Fare panel buttons | F |
 | Horn | HORN | Space |
-| Camera (chase / hood) | 🎥 | C |
 | Pause | ❚❚ | Esc / P |
 
 ## What's in the game
 
 - **Trips:** Ojota → Berger, Berger → Mowe, and Ojota → Mowe (unlocks at 3★), all on one 24 km real route
-- **Passengers:** load at the park, drop each at their stop, pick up people waiting along the way. Fares plus tips depend on ride comfort; missed stops cost you
+- **Passengers:** they walk over, board, say their stop and pay the conductor, who gives change from a real float of Naira notes (and sometimes gets it wrong). Drop each at their stop; tips depend on ride comfort; missed stops cost you
+- **Game pace:** an independent game clock (Normal = 3×) and Trip Units (TU) for distances. See [docs/CHANGELOG.md](docs/CHANGELOG.md)
 - **Detours:** 153 km of real OSM streets beside the expressway, 90 km of them untarred. Leave from the right shoulder to beat the Berger, Kara and Arepo gridlocks
 - **Chowdeck and Glovo delivery riders:** lane-splitting on the Lagos stretch and riding the inner streets
 - **Real landmarks** placed where they are: Gani Fawehinmi Park, Ketu Market, Kara (cattle) Market, Hi-Impact Planet, Mountain Top University, fuel stations, schools, estates and more (35). Collect them in **Places**

@@ -87,3 +87,23 @@ npm run build
 ```
 
 This runs `tsc --noEmit` followed by `vite build` and produces a static site in `dist/`.
+
+## Change-spec systems (Oct 2026)
+
+| Module | What it does |
+|---|---|
+| `src/systems/GameClock.ts` | Game clock (`clockScale`) and pace (`travelScale`, blended in with speed), presets, Trip Units |
+| `src/systems/Driving.ts` | Gear state P/R/N/D, signed speed, brake/reverse/indicator lamps, interior view switch, optional GLB body |
+| `src/systems/CameraRig.ts` | Chase, driver, cabin and orbit cameras; reversing and look-back views; rear-view display |
+| `src/world/interior.ts` | Seat layout per vehicle, cockpit and cabin shell, steering wheel |
+| `src/world/people.ts` | Procedural people (`Look`), standing/seated/walking/conductor figures, `HumanFactory` swap point |
+| `src/systems/Passengers.ts` | Passenger state machine, boarding and alighting, conductor, fare transactions, disputes, passenger list |
+| `src/systems/Economy.ts` | Naira notes, tenders, change float, change-making, dispute rolls, trip ledger (no Babylon imports) |
+| `src/systems/Dialogue.ts`, `src/data/dialogue.ts` | Line pools by situation with no-repeat memory |
+| `src/world/assets.ts` | Optional GLB loading from `public/models/manifest.json` |
+
+**Pace.** Each frame the game computes `f = GameClock.worldScale(player speed)`: 1 below 5 m/s, rising smoothly to `travelScale` at 20 m/s. The player's ground displacement, traffic and riders all use `dt × f`, so relative motion stays consistent. The player's yaw rate stays real-time, so steering feels the same and turning radius grows with the pace. Physics sub-steps increase with `f` to keep collisions reliable. Animation, dialogue and UI timing use real time.
+
+**Money.** Fares are collected when a passenger sits down, not when they get off. `Ledger.net` = fares collected − refunds − change losses. Tips are still paid at drop-off from mood.
+
+**Testing.** `npm test` runs the pure-logic tests. In dev builds, `window.game.debugStep(frames, keys)` steps the simulation deterministically without rendering, and `debugPax()` returns the passenger/ledger state; these are what the headless checks in `docs/TEST-CHECKLIST.md` use.
