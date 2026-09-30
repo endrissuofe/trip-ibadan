@@ -12,6 +12,7 @@ import { CATEGORY_ICON, CATEGORY_LABEL, HERO } from '../data/places';
 import { VEHICLE_SVG } from './icons';
 import { PACES, Pace, fmtTU } from '../systems/GameClock';
 import type { Gear } from '../systems/Driving';
+import type { ManifestRow, TxnView, DisputeView } from '../systems/Passengers';
 import { Minimap, drawTripMap } from './Minimap';
 
 export type MenuView = 'start' | 'vehicle' | 'trip' | 'pretrip' | 'garage' | 'settings' | 'places';
@@ -34,6 +35,9 @@ export interface GameApi {
   toggleCamera(): void;
   setGear(g: Gear): void;
   lookBack(on: boolean): void;
+  collectFare(): void;
+  returnChange(): void;
+  resolveDispute(choice: 'check' | 'payout' | 'back'): void;
   applySettings(s: Settings): void;
   click(): void;
 }
@@ -42,6 +46,7 @@ export interface TouchInput { left: boolean; right: boolean; accel: boolean; bra
 
 export interface HudState {
   gear: Gear; clock: string; tripTime: number;
+  manifest: ManifestRow[]; txn: TxnView | null; dispute: DisputeView | null; cabin: boolean;
   nav: NavState; kmh: number; limit: number; condition: number; fuel: number;
   x: number; z: number; heading: number;
   aboard: number; capacity: number; comfort: number; earned: number;
@@ -225,13 +230,17 @@ export class UI {
       <button class="hudbtn" style="right:calc(${touch ? 176 : 190}px + var(--safe-r))" data-a="pause" aria-label="Pause">❚❚</button>
       <button class="hudbtn" style="right:calc(${touch ? 226 : 240}px + var(--safe-r))" data-a="cam" aria-label="Camera">🎥</button>
       <button class="hudbtn" style="right:calc(${touch ? 276 : 290}px + var(--safe-r))" data-a="look" aria-label="Look back">👀</button>
+      <div class="manifest hbox ${touch ? 'hidden' : ''}" data-h="manifest"></div>
+      <button class="hudbtn" style="right:calc(${touch ? 326 : 340}px + var(--safe-r))" data-a="manifest" aria-label="Passenger list">📋</button>
+      <div class="txn hbox" data-h="txn"></div>
+      <div class="dispute hbox" data-h="dispute"></div>
       <div class="toast" data-h="toast"></div>
       <div class="found" data-h="found"></div>
       <div class="feed" data-h="feed"></div>
       <div class="loadpanel hbox" data-h="load"><div><b data-h="loadT"></b><div class="muted" style="font-size:12px">Passengers are boarding. Accelerate or tap Depart when ready.</div></div><button class="btn primary" data-a="depart">Depart</button></div>
       ${touch ? `<div class="ctl left"><button class="circle" data-k="left" aria-label="Steer left">◀</button><button class="circle" data-k="right" aria-label="Steer right">▶</button></div>
       <div class="ctl right"><button class="circle small" data-k="horn">HORN</button><button class="pedal brake" data-k="brake">BRAKE</button><button class="pedal accel" data-k="accel">ACCEL</button></div>`
-        : `<div class="keys-hint">W/↑ accelerate · S/↓ brake · A D/← → steer · E/Q gear up/down (P R N D) · R reverse · B look back · C camera · Space horn · Esc pause</div>`}
+        : `<div class="keys-hint">W/↑ accelerate · S/↓ brake · A D/← → steer · E/Q gear up/down (P R N D) · R reverse · B look back · C camera · M passengers · F fare · Space horn · Esc pause</div>`}
       <div class="rotate ${touch ? 'need' : ''}">↻ Turn your phone sideways to drive</div>
     </div>`));
     this.hudEls = {};
@@ -240,6 +249,16 @@ export class UI {
     el.querySelector('[data-a=pause]')!.addEventListener('click', () => this.game.pause());
     el.querySelector('[data-a=cam]')!.addEventListener('click', () => this.game.toggleCamera());
     el.querySelector('[data-a=depart]')!.addEventListener('click', () => this.game.depart());
+    el.querySelector('[data-a=manifest]')!.addEventListener('click', () => this.hudEls.manifest.classList.toggle('hidden'));
+    this.hudEls.txn.addEventListener('click', (e) => {
+      const a = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null;
+      if (a?.dataset.act === 'collect') this.game.collectFare();
+      if (a?.dataset.act === 'change') this.game.returnChange();
+    });
+    this.hudEls.dispute.addEventListener('click', (e) => {
+      const a = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null;
+      if (a) this.game.resolveDispute(a.dataset.act as 'check' | 'payout' | 'back');
+    });
     el.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('pointerdown', (e) => { e.preventDefault(); this.game.setGear((b as HTMLElement).dataset.g as Gear); }));
     const look = el.querySelector('[data-a=look]')!;
     look.addEventListener('pointerdown', (e) => { e.preventDefault(); this.game.lookBack(true); });
@@ -288,6 +307,44 @@ export class UI {
       E.loadT.textContent = `Loading at ${this.game.trip.from} Park · ${h.aboard}/${h.capacity}`;
     }
     this.minimap?.draw(h.x, h.z, h.heading, dots);
+    this.updatePaxPanels(h);
+  }
+
+  private paxKey = '';
+  /** Passenger list, fare transaction panel and dispute card (change spec §8, §12, §13). */
+  private updatePaxPanels(h: HudState) {
+    const E = this.hudEls;
+    const key = JSON.stringify([h.manifest, h.txn, h.dispute && { ...h.dispute, timeLeft: Math.ceil(h.dispute.timeLeft) }, h.cabin]);
+    if (key === this.paxKey) return;
+    this.paxKey = key;
+    const moodIcon: Record<string, string> = { Happy: '😊', Satisfied: '🙂', Neutral: '😐', Annoyed: '😣', Angry: '😡' };
+    E.manifest.innerHTML = h.manifest.length
+      ? `<div class="mh">PASSENGERS</div>${h.manifest.map((r) => `<div class="mr ${r.requesting ? 'req' : ''} ${r.status === 'dispute' ? 'bad' : ''}"><span class="seat">${r.seat}</span><span class="nm"></span><span class="ds">→ ${r.dest}</span><span class="st">${r.status === 'paid' ? '✓' : r.status}</span><span>${moodIcon[r.mood]}</span></div>`).join('')}`
+      : '';
+    E.manifest.querySelectorAll('.nm').forEach((n, i) => (n.textContent = h.manifest[i].name));
+    const t = h.txn;
+    const showTxn = !!t && (t.manual || h.cabin);
+    E.txn.classList.toggle('on', showTxn);
+    if (t && showTxn) {
+      const btn = (act: string, label: string, on: boolean) => `<button class="btn ${on ? 'primary' : ''}" data-act="${act}" ${on ? '' : 'disabled'}>${label}</button>`;
+      E.txn.innerHTML = `<div class="mh">PASSENGER ${String(t.seat).padStart(2, '0')} · <span class="nm"></span></div>
+        <div class="kv"><span class="muted">Destination</span><b>${t.dest}</b></div>
+        <div class="kv"><span class="muted">Fare</span><b>${naira(t.fare)}</b></div>
+        <div class="kv"><span class="muted">Received</span><b>${t.received === null ? '—' : naira(t.received)}</b></div>
+        <div class="kv"><span class="muted">Change</span><b>${t.received === null ? '—' : naira(t.change)}${t.given !== null && t.given !== t.change ? ` <span style="color:var(--amber)">(gave ${naira(t.given)})</span>` : ''}</b></div>
+        ${t.manual ? `<div class="row2">${btn('collect', 'Collect', t.canAct && t.received === null)}${btn('change', 'Return change', t.canAct && t.received !== null && t.given === null && t.change > 0)}</div>
+        ${t.canAct ? '' : '<div class="muted" style="font-size:12px;margin-top:6px">Stop the vehicle to take the fare.</div>'}` : '<div class="muted" style="font-size:12px;margin-top:4px">Conductor is collecting.</div>'}`;
+      (E.txn.querySelector('.nm') as HTMLElement).textContent = t.name;
+    }
+    const d = h.dispute;
+    E.dispute.classList.toggle('on', !!d);
+    if (d) {
+      E.dispute.innerHTML = `<div class="mh" style="color:var(--amber)">⚠ CHANGE DISPUTE · ${Math.ceil(d.timeLeft)}s</div><div class="dt"></div>
+        ${d.checked ? `<div class="muted" style="font-size:13px;margin:6px 0">${d.details}</div>` : ''}
+        <div class="row2">${d.checked ? '' : '<button class="btn" data-act="check">Check the money</button>'}<button class="btn" data-act="payout">Pay the passenger</button><button class="btn" data-act="back">Back the conductor</button></div>
+        <div class="muted" style="font-size:12px;margin-top:6px">If you don't decide, the conductor will count it himself.</div>`;
+      (E.dispute.querySelector('.dt') as HTMLElement).textContent = d.text;
+    }
   }
 
   toast(msg: string, ms = 2600) {
@@ -302,7 +359,7 @@ export class UI {
     const f = this.hudEls.feed; if (!f) return;
     const n = $(`<div class="fi ${tone}"></div>`); n.textContent = msg;
     f.prepend(n);
-    while (f.children.length > 3) f.lastElementChild!.remove();
+    while (f.children.length > 4) f.lastElementChild!.remove();
     setTimeout(() => n.classList.add('out'), 4200); setTimeout(() => n.remove(), 5000);
   }
 
@@ -344,7 +401,13 @@ export class UI {
       <ul class="missions">${res.missions.map((m) => `<li class="${m.done ? 'ok' : ''}">${m.done ? '✔' : '✘'} ${m.label}</li>`).join('')}</ul>
       <table>
         <tr><td>Passengers delivered</td><td>${res.delivered}${res.missed ? ` · ${res.missed} missed` : ''}</td></tr>
-        <tr><td>Fares + tips</td><td>${naira(res.fares)} + ${naira(res.tips)}</td></tr>
+        <tr><td>Passengers served</td><td>${res.money.served}</td></tr>
+        <tr><td>Fares collected</td><td>${naira(res.money.faresCollected)}</td></tr>
+        <tr><td>Change returned</td><td>${naira(res.money.changeReturned)}</td></tr>
+        <tr><td>Disputed fares</td><td>${res.money.disputes}${res.money.disputes ? ` (${res.money.disputesWon} in your favour)` : ''}</td></tr>
+        <tr><td>Unpaid fares</td><td>${naira(res.money.unpaid)}</td></tr>
+        ${res.money.refunds || res.money.changeLoss ? `<tr><td>Refunds · change losses</td><td>${naira(res.money.refunds)} · ${naira(res.money.changeLoss)}</td></tr>` : ''}
+        <tr><td>Net fares + tips</td><td>${naira(res.fares)} + ${naira(res.tips)}</td></tr>
         <tr><td>Passenger rating</td><td>${res.rating.toFixed(1)} ★</td></tr>
         <tr><td>Places discovered</td><td>${res.placesFound}${res.placesNew ? ` (${res.placesNew} new, +${naira(res.placeBonus)})` : ''}</td></tr>
         <tr><td>Distance · time</td><td>${fmtTU(res.distanceKm * 1000)} · ${fmtTime(res.timeS)} game time</td></tr>

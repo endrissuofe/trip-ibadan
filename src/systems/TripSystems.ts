@@ -2,6 +2,7 @@
 import { VehicleDef } from '../data/vehicles';
 import { RouteEvent } from '../data/trips';
 import { Impact } from './Driving';
+import type { Ledger } from './Economy';
 
 /** Fuel is scaled so a short slice still matters (see docs/KNOWN-LIMITATIONS). */
 export const FUEL_GAME_SCALE = 10;
@@ -98,6 +99,8 @@ export interface TripResult {
   breakdown: [string, number][];
   earnings: number;
   missions: Mission[];
+  /** Trip money summary (change spec §18). */
+  money: { served: number; faresCollected: number; changeReturned: number; disputes: number; disputesWon: number; unpaid: number; refunds: number; changeLoss: number; owedOutstanding: number };
   stars: number;
 }
 
@@ -105,6 +108,7 @@ export function scoreTrip(p: {
   completed: boolean; reason: string; def: VehicleDef; distanceM: number; timeS: number; condition: number; fuelUsedPct: number;
   violations: number; majorCollisions: number; minorHits: number; tripLengthM: number;
   delivered: number; missed: number; fares: number; tips: number; rating: number; placeBonus: number; placesFound: number; placesNew: number; ridersHit: number;
+  ledger?: Ledger;
 }): TripResult {
   const b: [string, number][] = [];
   if (p.completed) b.push(['Destination reached', 3000]);
@@ -131,5 +135,10 @@ export function scoreTrip(p: {
     rating: p.rating, placesFound: p.placesFound, placesNew: p.placesNew,
     damagePct: 100 - p.condition, fuelUsedPct: p.fuelUsedPct, violations: p.violations, majorCollisions: p.majorCollisions, ridersHit: p.ridersHit,
     score, breakdown: b, earnings: p.fares + p.tips + p.placeBonus, missions, stars: missions.filter((m) => m.done).length,
+    money: {
+      served: p.ledger?.served ?? p.delivered, faresCollected: p.ledger?.faresCollected ?? p.fares, changeReturned: p.ledger?.changeReturned ?? 0,
+      disputes: p.ledger?.disputes ?? 0, disputesWon: p.ledger?.disputesWon ?? 0, unpaid: p.ledger?.unpaid ?? 0,
+      refunds: p.ledger?.refunds ?? 0, changeLoss: p.ledger?.changeLoss ?? 0, owedOutstanding: p.ledger?.owedOutstanding ?? 0,
+    },
   };
 }

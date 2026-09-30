@@ -56,6 +56,7 @@ export class Game implements GameApi {
   clock = new GameClock();
   private hintCd = 0;
   private lookingBack = false;
+  private disputeSeen = false;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.save = loadSave();
@@ -159,7 +160,7 @@ export class Game implements GameApi {
     this.nav.voice = this.save.settings.voice;
     this.discovery = new Discovery(this.route, new Set(this.save.discovered));
     this.pax?.dispose();
-    this.pax = new Passengers(this.scene, this.world, this.vehicle.passengerCapacity, this.trip.fromId, this.trip.toId);
+    this.pax = new Passengers(this.scene, this.world, this.player!, this.vehicle.passengerCapacity, this.trip.fromId, this.trip.toId, this.save.settings.fareMode);
     this.clock = new GameClock(this.save.settings.pace);
     this.tripTime = 0; this.throttle = 0; this.brake = 0; this.lastCue = ''; this.disabledT = 0; this.ridersHit = 0;
     this.traffic.spawnAround(this.player!);
@@ -190,6 +191,9 @@ export class Game implements GameApi {
     if (i >= 0 && i < 4) this.setGear((['P', 'R', 'N', 'D'] as Gear[])[i]);
   }
   lookBack(on: boolean) { this.lookingBack = on; }
+  collectFare() { this.pax?.collect(); }
+  returnChange() { this.pax?.returnChange(); }
+  resolveDispute(choice: 'check' | 'payout' | 'back') { this.pax?.resolveDispute(choice); }
   pause() { if (this.state !== 'drive') return; this.state = 'paused'; this.audio.silence(); this.ui.pause(); }
   resume() { if (this.state !== 'paused') return; this.state = 'drive'; this.ui.releaseInputs(); this.ui.hud(); }
   restart() { this.startDrive(); }
@@ -234,6 +238,8 @@ export class Game implements GameApi {
       if (down && !e.repeat && k === 'r') { this.setGear('R'); return; }
       if (down && !e.repeat && k === 'n') { this.setGear('N'); return; }
       if (k === 'b') { this.lookBack(down); return; }
+      if (down && !e.repeat && k === 'f') { const t = this.pax?.txnView(); if (t?.received === null) this.collectFare(); else this.returnChange(); return; }
+      if (down && !e.repeat && k === 'm') { document.querySelector('.manifest')?.classList.toggle('hidden'); return; }
     }
     if (down) this.keys.add(k); else this.keys.delete(k);
   }
@@ -294,7 +300,7 @@ export class Game implements GameApi {
 
     const limit = this.world.speedLimitAt(p.s, this.vehicle.speedLimit);
     // passengers (read impacts before damage clears them)
-    for (const m of pax.update(dt, p, ctl, limit)) { this.ui.feed(m.text, m.tone); if (m.money) this.audio.click(); }
+    for (const m of pax.update(dt, p, ctl, limit)) { this.ui.feed(m.text, m.tone); if (m.money) this.audio.click(); if (import.meta.env.DEV) this.debugFeed.push(m.text); }
     for (const imp of p.impacts) {
       const loss = this.damage.apply(imp);
       if (imp.kind !== 'rider') this.audio.crash(imp.kmh);
@@ -306,6 +312,8 @@ export class Game implements GameApi {
 
     const msg = this.events.update(dt, p.s, p.kmh, limit, p.psi, p.onExpressway);
     if (msg) { this.ui.toast(msg, 3200); this.audio.chime(); }
+    if (pax.disputeView() && !this.disputeSeen) { this.disputeSeen = true; this.audio.chime(); }
+    if (!pax.disputeView()) this.disputeSeen = false;
     if (p.surface !== this.lastSurface) {
       if (p.surface === 'dirt') this.ui.toast(`Untarred road${p.streetName ? `: ${p.streetName}` : ''}. Passengers feel every bump!`);
       else if (p.surface === 'street') this.ui.toast(`Inner street${p.streetName ? `: ${p.streetName}` : ''}`);
@@ -331,6 +339,7 @@ export class Game implements GameApi {
       x: p.pos.x, z: p.pos.z, heading: p.heading,
       aboard: pax.aboard.length, capacity: pax.capacity, comfort: pax.comfort, earned: pax.fares + pax.tips + this.discovery.bonus,
       phase: pax.phase, queue: pax.queueAtStart,
+      manifest: pax.manifest(), txn: pax.txnView(), dispute: pax.disputeView(), cabin: this.rig.mode === 'cabin',
       next: next && pax.phase !== 'loading' ? { name: next.stop.name, drop: next.drop, wait: next.wait } : null,
       places: `${this.discovery.found.length}/${this.discovery.totalOnTrip()}`,
     }, (cb) => { this.traffic.forEach((x, z, side) => cb(x, z, side === 'nb' ? '#ffffff' : '#c9d6cf')); this.riders.forEach((x, z, c) => cb(x, z, c, 7)); });
@@ -353,7 +362,7 @@ export class Game implements GameApi {
       completed, reason, def: this.vehicle, distanceM: p.odometer, timeS: this.tripTime, condition: this.damage.condition,
       fuelUsedPct: this.fuel.usedPct, violations: this.events.violations.length + overshoot, majorCollisions: this.damage.majorCollisions,
       minorHits: this.damage.minorHits, tripLengthM: this.route.tripLength,
-      delivered: pax.delivered, missed: pax.missed + missedAboard, fares: pax.fares, tips: pax.tips, rating: pax.rating,
+      delivered: pax.delivered, missed: pax.missed + missedAboard, fares: pax.fares, tips: pax.tips, rating: pax.rating, ledger: pax.ledger,
       placeBonus: this.discovery.bonus, placesFound: this.discovery.found.length, placesNew: this.discovery.found.filter((f) => f.isNew).length, ridersHit: this.ridersHit,
     });
     const key = `${this.trip.id}:${this.vehicle.id}`;
@@ -382,6 +391,12 @@ export class Game implements GameApi {
     return this.debug;
   }
   debugRender() { this.scene.render(); }
+  debugPax() {
+    const x = this.pax; if (!x) return null;
+    return { phase: x.phase, aboard: x.aboard.length, seatsFree: x.seatsFree, manifest: x.manifest(), txn: x.txnView(), dispute: x.disputeView(), ledger: { ...x.ledger, net: x.ledger.net }, float: x.float.total, delivered: x.delivered, missed: x.missed, tips: x.tips, states: x.aboard.map((p) => p.state) };
+  }
+  /** Debug: capture HUD feed messages. */
+  debugFeed: string[] = [];
   get debug() { return { state: this.state, s: this.player?.s, d: this.player?.d, kmh: this.player?.kmh, surface: this.player?.surface, fps: this.engine.getFps(), pos: this.player?.pos ?? Vector3.Zero(), meshes: this.scene.meshes.length, pax: this.pax?.phase, gear: this.player?.gear, v: this.player?.v, heading: this.player?.heading, x: this.player?.x, z: this.player?.z, tripTime: this.tripTime, cam: this.rig?.mode }; }
 }
 
