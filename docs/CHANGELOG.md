@@ -35,4 +35,5 @@ Implements the P0 items of the *Developer Change Specification r1.0* on the exis
 
 ### Other
 - A delivery rider riding into your parked vehicle no longer counts as you knocking them down.
+- Traffic no longer rear-ends the vehicle while it's parked at the park loading passengers (this could cost up to 40% condition before the trip started).
 - `npm test`: unit tests for fares, change-making, disputes and dialogue (Node 22.6+).
