@@ -155,6 +155,11 @@ export class Traffic {
       if (a.side === 'nb' && Math.abs(s - player.s) < 25 && Math.abs(d - player.d) < 3) continue;
       if (this.agents.some((o) => o !== a && o.side === a.side && Math.abs(o.s - s) < 22 && Math.abs(o.d - d) < 2.5)) { s += 25; continue; }
       a.s = s; a.lane = lane; a.d = d; a.v = Math.min(this.limitV0(a, s), a.v0) * (0.8 + this.rnd() * 0.2); a.hitCd = 0;
+      // spawned behind a slower player in the same lane: start slow enough to stop behind them (≈2.5 m/s² braking)
+      if (a.side === 'nb' && s < player.s && Math.abs(d - player.d) < 2.6) {
+        const gap = Math.max(0, player.s - s - 20);
+        a.v = Math.min(a.v, Math.max(0, player.v) + Math.sqrt(2 * 2.5 * gap));
+      }
       this.sync(a);
       return true;
     }
@@ -255,7 +260,7 @@ export class Traffic {
         if (cl && d + a.wid / 2 > cl.dMax) continue;
       }
       const clear = this.agents.every((o) => o === a || o.side !== a.side || Math.abs(o.d - d) > 2.4 || (o.s > a.s + 30 || o.s < a.s - 18));
-      const playerClear = !player || a.side !== 'nb' || Math.abs(player.d - d) > 2.4 || player.s > a.s + 25 || player.s < a.s - 15;
+      const playerClear = !player || a.side !== 'nb' || Math.abs(player.d - d) > 2.4 || player.s > a.s + 25 + Math.max(0, a.v - player.v) ** 2 / 5 || player.s < a.s - 15; // room to stop behind a slower player
       if (clear && playerClear) { a.lane = l; a.changeCd = 4 + this.rnd() * 3; return; }
     }
     a.changeCd = forced ? 1 : 1.5;

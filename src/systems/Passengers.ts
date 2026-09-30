@@ -47,13 +47,13 @@ export interface TxnView {
 export interface DisputeView { id: number; name: string; text: string; checked: boolean; details: string; timeLeft: number }
 export interface ManifestRow { seat: number; name: string; dest: string; fare: number; status: string; mood: MoodLabel; requesting: boolean }
 
-const BOARD_SPEED = 1.3;       // m/s walking
+const BOARD_SPEED = 1.4;       // m/s walking
 const MAX_WALKING = 3;          // at most this many boarding at once
 const BOARD_STAGGER = 0.7;      // s between passengers starting to walk
 const REQUEST_STOP_M = 900;     // passenger calls out this far before their stop (real metres)
 const DISPUTE_TIMEOUT = 10;     // s before the conductor settles it himself
 
-interface Walk { w: Walker; pax: Pax; to: 'door' | 'away'; tx: number; tz: number; t: number }
+interface Walk { w: Walker; pax: Pax; to: 'door' | 'away'; tx: number; tz: number; t: number; limit: number }
 interface Txn { pax: Pax; t: number; tender: number[]; received: number | null; given: number | null; stage: 'ask' | 'collect' | 'change' | 'done'; short: number; dispute: DisputeKind | null }
 interface Dispute { pax: Pax; kind: DisputeKind; short: number; claim: number; checked: boolean; t: number }
 interface Note { m: Mesh; a: Vector3; b: Vector3; t: number }
@@ -152,7 +152,9 @@ export class Passengers {
       list.forEach((p, i) => {
         if (p.stand) return;
         const hw = nb.halfWidth(st.s);
-        const w = nb.toWorld(st.s + 6 + i * 1.3 - (id === this.startId ? 12 : 0), hw + 4.4 + (i % 2) * 0.8);
+        // at the park the queue forms alongside the loading bay, close to the passenger door
+        const along = id === this.startId ? this.world.route.tripStart - 12 + i * 1.1 : st.s + 6 + i * 1.3;
+        const w = nb.toWorld(along, hw + (id === this.startId ? 3.2 : 4.4) + (i % 2) * 0.8);
         p.stand = buildStanding(this.scene, p.look);
         p.stand.position.set(w.x, w.y, w.z); p.stand.rotation.y = w.heading - Math.PI / 2 + (this.rnd() - 0.5) * 0.6;
         p.stand.metadata = { dynamic: true };
@@ -296,7 +298,7 @@ export class Passengers {
     }
 
     if (this.phase === 'loading') {
-      if (p.kmh > 4) { this.depart(); this.push(`Departed with ${this.aboard.length}/${this.capacity} passengers`, 'info'); }
+      if (p.kmh > 8) { this.depart(); this.push(`Departed with ${this.aboard.length}/${this.capacity} passengers`, 'info'); }
       else {
         const q = this.waiting.get(this.startId)!;
         if (q.length && this.seatsFree > 0 && this.boardQ.length === 0) this.boardQ.push(...q.splice(0, this.seatsFree));
@@ -396,7 +398,7 @@ export class Passengers {
       w.root.position.copyFrom(at);
       x.stand?.dispose(); x.stand = undefined;
       const door = this.doorWorld(p);
-      this.walks.push({ w, pax: x, to: 'door', tx: door.x, tz: door.z, t: 0 });
+      this.walks.push({ w, pax: x, to: 'door', tx: door.x, tz: door.z, t: 0, limit: Math.hypot(door.x - at.x, door.z - at.z) / (BOARD_SPEED * 0.7) + 2 });
     }
   }
 
@@ -446,7 +448,7 @@ export class Passengers {
     const rx = Math.cos(p.heading), rz = -Math.sin(p.heading); // vehicle's right
     const w = new Walker(this.scene, x.look);
     w.root.position.copyFrom(door); w.root.rotation.y = p.heading + Math.PI / 2;
-    this.walks.push({ w, pax: x, to: 'away', tx: door.x + rx * 7 - Math.sin(p.heading) * 1.5, tz: door.z + rz * 7 - Math.cos(p.heading) * 1.5, t: 0 });
+    this.walks.push({ w, pax: x, to: 'away', tx: door.x + rx * 7 - Math.sin(p.heading) * 1.5, tz: door.z + rz * 7 - Math.cos(p.heading) * 1.5, t: 0, limit: 8 });
   }
 
   /** Walker reached the kerb: the passenger has left; now they come off the list (spec §9). */
@@ -637,7 +639,7 @@ export class Passengers {
       if (dist > 0.05) { pos.x += (dx / dist) * step; pos.z += (dz / dist) * step; w.w.root.rotation.y = Math.atan2(dx, dz); }
       pos.y = w.to === 'door' ? door.y : pos.y;
       w.w.animate(dt, dist > 0.05 ? BOARD_SPEED : 0);
-      const arrived = dist < 0.25 || w.t > 6;
+      const arrived = dist < 0.25 || w.t > w.limit;
       if (arrived) {
         w.w.dispose();
         if (w.to === 'door') this.seat(w.pax); else this.left(w.pax);
