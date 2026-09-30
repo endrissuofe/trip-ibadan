@@ -1,0 +1,22 @@
+{
+  "name": "trip-ibadan",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host",
+    "data:fetch": "node tools/osm/overpass.mjs tools/osm/road.overpassql data/osm/road.json && node tools/osm/overpass.mjs tools/osm/places.overpassql data/osm/places.json",
+    "data:build": "node tools/osm/analyze.mjs && node tools/osm/build-route.mjs"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^8.56.2",
+    "@babylonjs/materials": "^8.56.2"
+  },
+  "devDependencies": {
+    "pngjs": "^7.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}

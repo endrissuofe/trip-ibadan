@@ -1,0 +1,8 @@
+/node_modules
+/dist
+/data
+/design
+/spec
+/docs
+/tools
+/.claude
