@@ -12,8 +12,16 @@ import { World } from '../world/World';
 import { VehicleDef } from '../data/vehicles';
 import { buildVehicle, vehicleMaterial, TrafficKind } from '../world/models';
 import { blobTexture } from '../world/textures';
+import { cabinLayout, buildInterior, CabinLayout, WHEEL_TILT } from '../world/interior';
 
 export interface Controls { throttle: number; brake: number; steer: number; horn: boolean }
+/** Gear order (change spec §5): PARK → REVERSE → NEUTRAL → DRIVE. */
+export type Gear = 'P' | 'R' | 'N' | 'D';
+export const GEARS: Gear[] = ['P', 'R', 'N', 'D'];
+/** Changing between P, R and D is only allowed below this speed (m/s). */
+export const SHIFT_MAX_SPEED = 0.8;
+/** Reverse speed cap (m/s) ≈ 16 km/h. */
+export const REVERSE_MAX_SPEED = 4.5;
 export interface Impact { kmh: number; kind: 'barrier' | 'vehicle' | 'obstacle' | 'offroad' | 'building' | 'rider' }
 export type Surface = 'expressway' | 'street' | 'dirt' | 'bush';
 
@@ -36,7 +44,10 @@ export class PlayerVehicle {
   private rollSm = 0; private pitchSm = 0;
   private bump = 0;
   private hint = -1;
-  private stoppedBrakeT = 0;
+  /** Current gear. Reverse is its own state, not "negative throttle". */
+  gear: Gear = 'P';
+  /** Brake lights on this frame. */
+  braking = false;
   impacts: Impact[] = [];
   pos = new Vector3();
   /** 0..1 roughness felt this frame (for passenger comfort and camera shake). */
@@ -53,6 +64,11 @@ export class PlayerVehicle {
     const bm = new StandardMaterial('blobMat', scene);
     bm.diffuseTexture = blobTexture(scene); bm.useAlphaFromDiffuseTexture = true; bm.specularColor = Color3.Black(); bm.zOffset = -4;
     this.blob.material = bm; this.blob.rotationQuaternion = new Quaternion(); this.blob.metadata = { dynamic: true };
+    this.buildLights(scene);
+    this.layout = cabinLayout(def);
+    this.interior = buildInterior(scene, this.layout, this.mesh);
+    this.steeringWheel = this.interior.getChildMeshes().find((m) => m.metadata?.steering) as Mesh;
+    this.steeringWheel.rotationQuaternion = new Quaternion();
     this.reset(s0, d0);
   }
 
@@ -64,7 +80,7 @@ export class PlayerVehicle {
   reset(s: number, d: number, headingOffset = 0) {
     const p = this.world.route.nb.toWorld(s, d);
     this.x = p.x; this.z = p.z; this.heading = p.heading + headingOffset;
-    this.v = 0; this.steerSm = 0; this.odometer = 0; this.impacts = []; this.hint = -1;
+    this.v = 0; this.steerSm = 0; this.odometer = 0; this.impacts = []; this.hint = -1; this.gear = 'P'; this.braking = false;
     this.derive();
     this.syncMesh(0);
   }
@@ -84,7 +100,30 @@ export class PlayerVehicle {
     this.psi = Math.atan2(Math.sin(this.heading - h), Math.cos(this.heading - h));
   }
 
-  update(dt: number, ctl: Controls, engineOn: boolean) {
+  /**
+   * Ask for a gear. Neutral is always allowed; P, R and D need the vehicle (almost) stopped.
+   * Returns a reason when refused so the HUD can tell the player.
+   */
+  requestGear(g: Gear): { ok: boolean; reason?: string } {
+    if (g === this.gear) return { ok: true };
+    if (g !== 'N' && Math.abs(this.v) > SHIFT_MAX_SPEED) return { ok: false, reason: 'Stop the vehicle before changing gear' };
+    this.gear = g;
+    return { ok: true };
+  }
+  /** Step along P-R-N-D: +1 towards Drive, −1 towards Park. */
+  shiftGear(dir: 1 | -1) {
+    const i = GEARS.indexOf(this.gear) + dir;
+    if (i < 0 || i >= GEARS.length) return { ok: false };
+    return this.requestGear(GEARS[i]);
+  }
+  get reversing() { return this.gear === 'R'; }
+
+  /**
+   * @param dt real seconds
+   * @param travelScale game pace factor for how fast the vehicle covers the real road (1 = real).
+   *   Steering keeps its real-time feel; only the distance covered per second is scaled.
+   */
+  update(dt: number, ctl: Controls, engineOn: boolean, travelScale = 1) {
     const def = this.def, w = this.world, nb = w.route.nb;
     const hw = nb.halfWidth(this.s);
     this.bridge = nb.sample(this.s).bridge;
@@ -105,42 +144,53 @@ export class PlayerVehicle {
     this.streetName = street?.name ?? '';
 
     // --- longitudinal
-    this.stoppedBrakeT = ctl.brake > 0.5 && this.v < 0.5 ? this.stoppedBrakeT + dt : 0;
+    // Speed `v` is SIGNED along the vehicle's forward axis (negative = moving backwards).
+    // Engine force depends on the gear; brake, drag and rolling resistance always oppose
+    // the current motion and never push the vehicle through zero. (The old model made the
+    // BRAKE pedal drive the car backwards, so there was no way to brake while reversing.)
     const vmax = def.maxSpeed / 3.6;
-    let a = 0;
-    if (engineOn && ctl.throttle > 0) {
-      if (this.v >= -0.2) a += def.acceleration * ctl.throttle * Math.max(0, 1 - Math.pow(Math.max(0, this.v) / vmax, 2.2));
-      else a += def.braking * ctl.throttle;
-    }
-    if (ctl.brake > 0) {
-      if (this.v > 0.4) a -= def.braking * ctl.brake * (this.surface === 'dirt' || this.surface === 'bush' ? 0.75 : 1);
-      else if (engineOn && this.stoppedBrakeT > 0.6) a -= 2.2 * ctl.brake;
-      else this.v = Math.max(0, this.v);
-    }
-    const heavy = def.type === 'minivan' ? 1 : 1.35;
-    a -= 0.00045 * heavy * this.v * Math.abs(this.v) + 0.15 * Math.sign(this.v);
-    const av = Math.abs(this.v);
-    if (this.surface === 'dirt') { a -= Math.sign(this.v) * (0.5 + av * 0.035); this.roughness = Math.min(1, av / 14); }
-    else if (this.surface === 'bush') { a -= Math.sign(this.v) * (2.0 + av * 0.07); this.roughness = Math.min(1, av / 7); }
-    else if (this.surface === 'street') this.roughness = Math.min(0.25, av / 60);
-    else this.roughness = 0;
-    if (this.onExpressway) { // grade resistance from real elevation
-      const slope = (nb.sample(this.s + 3).y - nb.sample(this.s - 3).y) / 6;
-      a -= 9.81 * slope * 0.8 * Math.cos(this.psi);
-    }
-
     const prevV = this.v;
-    this.v += a * dt;
-    if (Math.abs(this.v) < 0.12 && ctl.throttle === 0 && ctl.brake === 0) this.v = 0;
-    this.v = Math.min(vmax, Math.max(-4.5, this.v));
-    this.longAcc = (this.v - prevV) / Math.max(dt, 1e-3);
+    let drive = 0; // engine acceleration, signed
+    if (engineOn && ctl.throttle > 0) {
+      if (this.gear === 'D') drive = def.acceleration * ctl.throttle * Math.max(0, 1 - Math.pow(Math.max(0, this.v) / vmax, 2.2));
+      else if (this.gear === 'R') drive = -def.acceleration * 0.6 * ctl.throttle * Math.max(0, 1 - Math.max(0, -this.v) / REVERSE_MAX_SPEED);
+    }
+    // grade from real elevation acts in every gear (a car in N can roll back down a slope)
+    let grade = 0;
+    if (this.onExpressway) {
+      const slope = (nb.sample(this.s + 3).y - nb.sample(this.s - 3).y) / 6;
+      grade = -9.81 * slope * 0.8 * Math.cos(this.psi);
+    }
+    let v = this.v + (drive + grade) * dt;
 
-    // --- integrate
+    const heavy = def.type === 'minivan' ? 1 : 1.35;
+    const av0 = Math.abs(v);
+    const offroadK = this.surface === 'dirt' || this.surface === 'bush' ? 0.75 : 1;
+    let resist = 0.00045 * heavy * v * v + 0.15 + ctl.brake * def.braking * offroadK;
+    if (this.surface === 'dirt') { resist += 0.5 + av0 * 0.035; this.roughness = Math.min(1, av0 / 14); }
+    else if (this.surface === 'bush') { resist += 2.0 + av0 * 0.07; this.roughness = Math.min(1, av0 / 7); }
+    else if (this.surface === 'street') this.roughness = Math.min(0.25, av0 / 60);
+    else this.roughness = 0;
+    if (this.gear === 'P') resist += 25; // parking pawl
+    v = towardsZero(v, resist * dt);
+    // engine can't carry the car the "wrong" way through zero in D or R
+    if (this.gear === 'D' && prevV >= 0 && v < 0 && grade >= 0) v = 0;
+    if (this.gear === 'R' && prevV <= 0 && v > 0 && grade <= 0) v = 0;
+    if (Math.abs(v) < 0.12 && ctl.throttle === 0) v = 0;
+    this.v = Math.min(vmax, Math.max(-REVERSE_MAX_SPEED, v));
+    this.longAcc = (this.v - prevV) / Math.max(dt, 1e-3);
+    this.braking = ctl.brake > 0.05;
+    const av = Math.abs(this.v);
+
+    // --- integrate. Signed v in the bicycle model gives correct steering when reversing.
+    // Pace: the vehicle covers ground `travelScale` times faster, while yaw rate stays real,
+    // so steering feels the same and the turning radius grows with the pace.
+    const f = travelScale;
     this.heading += yawRate * dt;
-    this.x += Math.sin(this.heading) * this.v * dt;
-    this.z += Math.cos(this.heading) * this.v * dt;
+    this.x += Math.sin(this.heading) * this.v * f * dt;
+    this.z += Math.cos(this.heading) * this.v * f * dt;
     this.latAcc = this.v * yawRate;
-    this.odometer += av * dt;
+    this.odometer += av * f * dt;
     this.derive();
 
     // --- carriageway walls (only matter near the expressway)
@@ -222,8 +272,68 @@ export class PlayerVehicle {
     this.mesh.position.set(this.x, this.y + jitter * 0.6, this.z);
     this.pos.copyFrom(this.mesh.position);
     this.blob.position.set(this.x, this.y + 0.05, this.z);
+    this.syncLights();
+    if (this.interiorOn) {
+      const a = -this.steerSm * 2.4; // wheel turns ~140° at full lock
+      Quaternion.RotationAxisToRef(new Vector3(0, Math.cos(WHEEL_TILT), Math.sin(WHEEL_TILT)), a, this.steeringWheel.rotationQuaternion!);
+    }
     Quaternion.RotationYawPitchRollToRef(this.heading, 0, 0, this.blob.rotationQuaternion!);
   }
 
-  dispose() { this.mesh.dispose(); this.blob.dispose(); }
+  // ------------------------------------------------------------ interior views
+  readonly layout: CabinLayout;
+  readonly interior: Mesh;
+  private steeringWheel: Mesh;
+  private interiorOn = false;
+  /** Driver/cabin cameras: hide the outer body and show the cockpit/cabin. */
+  setInteriorView(on: boolean) {
+    if (on === this.interiorOn) return;
+    this.interiorOn = on;
+    this.mesh.isVisible = !on;
+    this.interior.setEnabled(on);
+  }
+  get interiorView() { return this.interiorOn; }
+
+  // ------------------------------------------------------------ lights
+  private brakeMat!: StandardMaterial;
+  private reverseMat!: StandardMaterial;
+  private reverseLamps: Mesh[] = [];
+
+  /** Brake and reverse lamps as separate emissive meshes on the rear of the body. */
+  private buildLights(scene: Scene) {
+    const L = this.def.length, model = MODEL[this.def.model] ?? 'minibus';
+    const z = -L / 2 - 0.045;
+    const spot = model === 'sienna' ? { bx: 0.8, by: 1.2, bh: 0.5, rx: 0.5, ry: 0.98 }
+      : model === 'coach' ? { bx: 1.05, by: 1.3, bh: 0.6, rx: 0.75, ry: 0.95 }
+      : { bx: 0.86, by: 1.1, bh: 0.5, rx: 0.55, ry: 0.72 };
+    this.brakeMat = new StandardMaterial('brakeLampMat', scene);
+    this.brakeMat.diffuseColor = Color3.Black(); this.brakeMat.specularColor = Color3.Black();
+    this.brakeMat.emissiveColor = new Color3(0.35, 0.02, 0.03); this.brakeMat.backFaceCulling = false;
+    this.reverseMat = new StandardMaterial('reverseLampMat', scene);
+    this.reverseMat.diffuseColor = Color3.Black(); this.reverseMat.specularColor = Color3.Black();
+    this.reverseMat.emissiveColor = new Color3(1, 1, 0.94); this.reverseMat.backFaceCulling = false;
+    for (const sx of [-1, 1]) {
+      const b = MeshBuilder.CreatePlane('lamp_brake', { width: 0.3, height: spot.bh }, scene);
+      b.material = this.brakeMat; b.parent = this.mesh; b.position.set(sx * spot.bx, spot.by, z); b.metadata = { dynamic: true };
+      const r = MeshBuilder.CreatePlane('lamp_reverse', { width: 0.2, height: 0.12 }, scene);
+      r.material = this.reverseMat; r.parent = this.mesh; r.position.set(sx * spot.rx, spot.ry, z - 0.005); r.metadata = { dynamic: true };
+      r.isVisible = false;
+      this.reverseLamps.push(r);
+    }
+  }
+
+  private syncLights() {
+    const on = this.braking;
+    this.brakeMat.emissiveColor.set(on ? 1 : 0.35, on ? 0.08 : 0.02, on ? 0.08 : 0.03);
+    for (const r of this.reverseLamps) r.isVisible = this.gear === 'R' && this.mesh.isVisible;
+  }
+
+  dispose() { this.mesh.dispose(); this.blob.dispose(); this.brakeMat.dispose(); this.reverseMat.dispose(); }
+}
+
+/** Move `v` towards zero by `amount`, never crossing it. */
+function towardsZero(v: number, amount: number) {
+  if (v > 0) return Math.max(0, v - amount);
+  if (v < 0) return Math.min(0, v + amount);
+  return 0;
 }

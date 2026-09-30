@@ -7,6 +7,8 @@ export class Audio {
   private road!: GainNode; private roadFilter!: BiquadFilterNode;
   private brake!: GainNode;
   private hornGain!: GainNode;
+  private beepGain!: GainNode;
+  private reversing = false;
   private noiseBuf!: AudioBuffer;
   volume = 0.8;
   private gear = 1;
@@ -45,7 +47,13 @@ export class Audio {
     const hf = ctx.createBiquadFilter(); hf.type = 'lowpass'; hf.frequency.value = 1800;
     for (const f of [392, 494]) { const o = ctx.createOscillator(); o.type = 'square'; o.frequency.value = f; o.connect(hf); o.start(); }
     hf.connect(this.hornGain).connect(this.master);
+    // reverse warning beeper
+    this.beepGain = ctx.createGain(); this.beepGain.gain.value = 0;
+    const bo = ctx.createOscillator(); bo.type = 'sine'; bo.frequency.value = 1150; bo.connect(this.beepGain).connect(this.master); bo.start();
   }
+
+  /** Reverse gear engaged: intermittent beep (driven from drive()). */
+  setReversing(on: boolean) { this.reversing = on; }
 
   setVolume(v: number) { this.volume = v; if (this.ctx) this.master.gain.value = v; }
 
@@ -69,9 +77,11 @@ export class Audio {
     this.road.gain.setTargetAtTime(Math.min(0.28, speed / 400) + (offroad ? 0.15 : 0), t, 0.1);
     this.roadFilter.frequency.setTargetAtTime(offroad ? 180 : 300 + speed * 4, t, 0.1);
     this.brake.gain.setTargetAtTime(braking > 0.5 && speed > 25 ? 0.05 * braking : 0, t, 0.05);
+    const beep = this.reversing && running && t % 0.9 < 0.45;
+    this.beepGain.gain.setTargetAtTime(beep ? 0.05 : 0, t, 0.01);
   }
 
-  silence() { if (this.ctx) { const t = this.ctx.currentTime; this.engGain.gain.setTargetAtTime(0, t, 0.1); this.road.gain.setTargetAtTime(0, t, 0.1); this.brake.gain.setTargetAtTime(0, t, 0.05); this.hornGain.gain.setTargetAtTime(0, t, 0.02); } }
+  silence() { if (this.ctx) { const t = this.ctx.currentTime; this.engGain.gain.setTargetAtTime(0, t, 0.1); this.road.gain.setTargetAtTime(0, t, 0.1); this.brake.gain.setTargetAtTime(0, t, 0.05); this.hornGain.gain.setTargetAtTime(0, t, 0.02); this.beepGain.gain.setTargetAtTime(0, t, 0.02); } }
 
   horn(on: boolean) { if (this.ctx) this.hornGain.gain.setTargetAtTime(on ? 0.09 : 0, this.ctx.currentTime, 0.015); }
 

@@ -182,3 +182,12 @@ input[type=range] { accent-color: var(--blue); }
 .pic { font-size: 22px; }
 @media (max-width: 760px) { .plist { grid-template-columns: 1fr; } .feed { bottom: calc(120px + var(--safe-b)); } }
 @media (max-height: 460px) { .found { top: calc(56px + var(--safe-t)); } .found .n { font-size: 15px; } .feed { bottom: calc(100px + var(--safe-b)); } .status { width: 210px; } }
+
+/* gear selector + game clock (change spec §3, §5) */
+.gearbox { position: absolute; right: calc(16px + var(--safe-r)); top: calc(250px + var(--safe-t)); display: flex; flex-direction: column; gap: 4px; padding: 6px; }
+.gear { width: 40px; height: 36px; border-radius: 9px; border: 1px solid #2c4a5f; background: #0d1a23; color: #9cafbd; font-weight: 900; font-size: 16px; }
+.gear.on { background: var(--blue); color: #fff; border-color: #56b2ff; }
+.gear[data-g=R].on { background: #e8ecef; color: #0b151d; }
+.clock { position: absolute; left: 50%; transform: translateX(-50%); top: calc(84px + var(--safe-t)); padding: 4px 12px; display: flex; gap: 10px; align-items: baseline; font-weight: 800; font-variant-numeric: tabular-nums; }
+.clock small { color: var(--muted); font-weight: 600; }
+@media (pointer: coarse) { .gearbox { top: auto; bottom: calc(150px + var(--safe-b)); right: calc(12px + var(--safe-r)); flex-direction: row; } .gear { width: 44px; height: 44px; } }

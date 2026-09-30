@@ -10,6 +10,8 @@ import type { Found } from '../systems/Discovery';
 import { Discovery } from '../systems/Discovery';
 import { CATEGORY_ICON, CATEGORY_LABEL, HERO } from '../data/places';
 import { VEHICLE_SVG } from './icons';
+import { PACES, Pace, fmtTU } from '../systems/GameClock';
+import type { Gear } from '../systems/Driving';
 import { Minimap, drawTripMap } from './Minimap';
 
 export type MenuView = 'start' | 'vehicle' | 'trip' | 'pretrip' | 'garage' | 'settings' | 'places';
@@ -30,6 +32,8 @@ export interface GameApi {
   depart(): void;
   pause(): void; resume(): void; restart(): void; quitToMenu(): void;
   toggleCamera(): void;
+  setGear(g: Gear): void;
+  lookBack(on: boolean): void;
   applySettings(s: Settings): void;
   click(): void;
 }
@@ -37,6 +41,7 @@ export interface GameApi {
 export interface TouchInput { left: boolean; right: boolean; accel: boolean; brake: boolean; horn: boolean; tilt: number | null }
 
 export interface HudState {
+  gear: Gear; clock: string; tripTime: number;
   nav: NavState; kmh: number; limit: number; condition: number; fuel: number;
   x: number; z: number; heading: number;
   aboard: number; capacity: number; comfort: number; earned: number;
@@ -46,8 +51,8 @@ export interface HudState {
 }
 
 const $ = (html: string) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild as HTMLElement; };
-const fmtKm = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(m >= 10000 ? 0 : 1)} km` : `${Math.round(m / 10) * 10} m`);
 const fmtTime = (s: number) => { const m = Math.floor(s / 60), r = Math.round(s % 60); return m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min ${String(r).padStart(2, '0')} s`; };
+const fmtClock = (s: number) => { const t = Math.floor(s), h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), r = t % 60; return h ? `${h}:${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}` : `${m}:${String(r).padStart(2, '0')}`; };
 const naira = (n: number) => `₦${Math.round(n).toLocaleString()}`;
 const starStr = (n: number, of = 3) => '★'.repeat(n) + '☆'.repeat(Math.max(0, of - n));
 const svgFor = (v: VehicleDef) => VEHICLE_SVG[v.model === 'sienna' ? 'sienna' : v.model === 'minibus' ? 'bus' : v.id] ?? VEHICLE_SVG.bus;
@@ -166,7 +171,7 @@ export class UI {
         <div class="triplist">${list}</div>
         <div class="muted" style="font-size:13px;margin:8px 0">${t.blurb}</div>
         <ul class="stops compact"><li>${t.from}</li>${stops.slice(0, -1).map((s) => `<li class="dim">${s.name}</li>`).join('')}<li class="end">${t.to}</li></ul>
-        <div class="kv"><span class="muted">Distance</span><b>${km.toFixed(1)} km (real road)</b></div>
+        <div class="kv"><span class="muted">Distance</span><b>${fmtTU(r.tripLength)} (real road)</b></div>
         <div class="kv"><span class="muted">Fare to ${t.to}</span><b>${naira(fareFor(km))} per seat</b></div>
         <div class="kv"><span class="muted">Road</span><b>Lagos–Ibadan Expressway</b></div>
         <div class="stack" style="margin-top:14px"><button class="btn primary" data-a="go">Start trip</button><button class="btn" data-a="back">Back</button></div>
@@ -183,12 +188,11 @@ export class UI {
   // ------------------------------------------------------------------ pre-trip
   pretrip() {
     const r = this.game.route, v = this.game.vehicle, t = this.game.trip;
-    const km = r.tripLength / 1000;
     const stops = r.stopsBetween(r.tripStart, r.tripEnd);
     const el = this.mount($(`<div class="screen pretrip shade-l"><div class="panel">
       <h2>YOUR TRIP</h2>
       <ul class="stops compact" style="margin:12px 0 6px"><li>${t.from} Park</li>${stops.slice(0, -1).map((s) => `<li class="dim">${s.name}</li>`).join('')}<li class="end">${t.to}</li></ul>
-      <div class="kv"><span class="muted">Distance</span><b>${km.toFixed(1)} km</b></div>
+      <div class="kv"><span class="muted">Distance</span><b>${fmtTU(r.tripLength)}</b></div>
       <div class="kv"><span class="muted">Vehicle</span><b>${v.name} · ${v.passengerCapacity} seats</b></div>
       <div class="kv"><span class="muted">Passengers</span><b>Load at the park, drop at their stops</b></div>
       <div class="kv" style="border:0"><span class="muted">Fuel</span><b>100%</b></div><div class="bar"><i style="width:100%"></i></div>
@@ -215,16 +219,19 @@ export class UI {
       <div class="hbox progress"><div class="bar"><i data-h="prog"></i></div><div class="row"><span data-h="rem"></span><span data-h="pct"></span></div></div>
       <div class="hbox speed"><div class="v" data-h="kmh">0</div><div class="u">km/h</div></div>
       <div class="limit" data-h="limit">100</div>
+      <div class="gearbox hbox" aria-label="Gear selector">${['P', 'R', 'N', 'D'].map((g) => `<button class="gear" data-g="${g}">${g}</button>`).join('')}</div>
+      <div class="clock hbox"><span data-h="clock">06:30</span><small data-h="trip">0:00</small></div>
       <div class="mm"><canvas width="300" height="300"></canvas></div>
       <button class="hudbtn" style="right:calc(${touch ? 176 : 190}px + var(--safe-r))" data-a="pause" aria-label="Pause">❚❚</button>
       <button class="hudbtn" style="right:calc(${touch ? 226 : 240}px + var(--safe-r))" data-a="cam" aria-label="Camera">🎥</button>
+      <button class="hudbtn" style="right:calc(${touch ? 276 : 290}px + var(--safe-r))" data-a="look" aria-label="Look back">👀</button>
       <div class="toast" data-h="toast"></div>
       <div class="found" data-h="found"></div>
       <div class="feed" data-h="feed"></div>
       <div class="loadpanel hbox" data-h="load"><div><b data-h="loadT"></b><div class="muted" style="font-size:12px">Passengers are boarding. Accelerate or tap Depart when ready.</div></div><button class="btn primary" data-a="depart">Depart</button></div>
       ${touch ? `<div class="ctl left"><button class="circle" data-k="left" aria-label="Steer left">◀</button><button class="circle" data-k="right" aria-label="Steer right">▶</button></div>
       <div class="ctl right"><button class="circle small" data-k="horn">HORN</button><button class="pedal brake" data-k="brake">BRAKE</button><button class="pedal accel" data-k="accel">ACCEL</button></div>`
-        : `<div class="keys-hint">W/↑ accelerate · S/↓ brake/reverse · A D/← → steer · Space horn · C camera · Esc pause</div>`}
+        : `<div class="keys-hint">W/↑ accelerate · S/↓ brake · A D/← → steer · E/Q gear up/down (P R N D) · R reverse · B look back · C camera · Space horn · Esc pause</div>`}
       <div class="rotate ${touch ? 'need' : ''}">↻ Turn your phone sideways to drive</div>
     </div>`));
     this.hudEls = {};
@@ -233,6 +240,10 @@ export class UI {
     el.querySelector('[data-a=pause]')!.addEventListener('click', () => this.game.pause());
     el.querySelector('[data-a=cam]')!.addEventListener('click', () => this.game.toggleCamera());
     el.querySelector('[data-a=depart]')!.addEventListener('click', () => this.game.depart());
+    el.querySelectorAll('[data-g]').forEach((b) => b.addEventListener('pointerdown', (e) => { e.preventDefault(); this.game.setGear((b as HTMLElement).dataset.g as Gear); }));
+    const look = el.querySelector('[data-a=look]')!;
+    look.addEventListener('pointerdown', (e) => { e.preventDefault(); this.game.lookBack(true); });
+    for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) look.addEventListener(ev, () => this.game.lookBack(false));
     el.querySelectorAll('[data-k]').forEach((b) => {
       const k = (b as HTMLElement).dataset.k as 'left' | 'right' | 'accel' | 'brake' | 'horn';
       const on = (e: Event) => { e.preventDefault(); this.input[k] = true; b.classList.add('pressed'); };
@@ -248,14 +259,17 @@ export class UI {
     if (!E.kmh) return;
     const kmh = Math.round(Math.abs(h.kmh));
     const nextTxt = h.next ? `🚏 ${h.next.name}: ${h.next.drop ? `${h.next.drop} drop` : ''}${h.next.drop && h.next.wait ? ' · ' : ''}${h.next.wait ? `${h.next.wait} waiting` : ''}${!h.next.drop && !h.next.wait ? 'final stop' : ''}` : '';
-    const key = [h.nav.icon, h.nav.text, h.nav.sub, Math.round(h.nav.distM / 100), kmh, h.limit, Math.round(h.condition), Math.round(h.fuel), Math.round(h.comfort), Math.round(h.nav.progress * 200), h.aboard, h.earned, h.places, nextTxt, h.phase, h.queue].join('|');
+    const key = [h.gear, h.clock, Math.floor(h.tripTime), h.nav.icon, h.nav.text, h.nav.sub, Math.round(h.nav.distM / 100), kmh, h.limit, Math.round(h.condition), Math.round(h.fuel), Math.round(h.comfort), Math.round(h.nav.progress * 200), h.aboard, h.earned, h.places, nextTxt, h.phase, h.queue].join('|');
     if (key !== this.lastHud) {
       this.lastHud = key;
       E.ico.textContent = h.nav.icon;
       E.t.textContent = h.nav.text;
-      E.d.textContent = fmtKm(h.nav.distM);
+      E.d.textContent = fmtTU(h.nav.distM);
       E.s.textContent = h.nav.sub;
       E.kmh.textContent = String(kmh);
+      E.clock.textContent = h.clock;
+      E.trip.textContent = fmtClock(h.tripTime);
+      this.root.querySelectorAll('.gear').forEach((g) => g.classList.toggle('on', (g as HTMLElement).dataset.g === h.gear));
       E.limit.textContent = String(h.limit);
       E.limit.classList.toggle('over', kmh > h.limit + 7);
       E.cond.style.width = `${h.condition}%`; E.condT.textContent = `${Math.round(h.condition)}%`;
@@ -268,7 +282,7 @@ export class UI {
       E.places.textContent = h.places;
       E.next.textContent = nextTxt;
       E.prog.style.width = `${h.nav.progress * 100}%`;
-      E.rem.textContent = `${fmtKm(h.nav.remainingM)} to ${this.game.trip.to}`;
+      E.rem.textContent = `${fmtTU(h.nav.remainingM)} to ${this.game.trip.to}`;
       E.pct.textContent = `${Math.round(h.nav.progress * 100)}%`;
       E.load.style.display = h.phase === 'loading' ? 'flex' : 'none';
       E.loadT.textContent = `Loading at ${this.game.trip.from} Park · ${h.aboard}/${h.capacity}`;
@@ -310,7 +324,7 @@ export class UI {
   pause() {
     const r = this.game.route;
     const el = this.mount($(`<div class="screen pause center"><div class="panel">
-      <h2>PAUSED</h2><p class="muted">${this.game.trip.from} → ${this.game.trip.to} · ${(r.tripLength / 1000).toFixed(1)} km trip</p>
+      <h2>PAUSED</h2><p class="muted">${this.game.trip.from} → ${this.game.trip.to} · ${fmtTU(r.tripLength)} trip</p>
       <div class="stack"><button class="btn primary" data-a="resume">Resume</button><button class="btn" data-a="restart">Restart trip</button>
       <button class="btn" data-a="settings">Settings</button><button class="btn danger" data-a="quit">Quit to menu</button></div></div></div>`));
     el.querySelector('[data-a=resume]')!.addEventListener('click', () => this.game.resume());
@@ -333,7 +347,7 @@ export class UI {
         <tr><td>Fares + tips</td><td>${naira(res.fares)} + ${naira(res.tips)}</td></tr>
         <tr><td>Passenger rating</td><td>${res.rating.toFixed(1)} ★</td></tr>
         <tr><td>Places discovered</td><td>${res.placesFound}${res.placesNew ? ` (${res.placesNew} new, +${naira(res.placeBonus)})` : ''}</td></tr>
-        <tr><td>Distance · time</td><td>${res.distanceKm.toFixed(1)} km · ${fmtTime(res.timeS)}</td></tr>
+        <tr><td>Distance · time</td><td>${fmtTU(res.distanceKm * 1000)} · ${fmtTime(res.timeS)} game time</td></tr>
         <tr><td>Damage · fuel used</td><td>${Math.round(res.damagePct)}% · ${Math.round(res.fuelUsedPct)}%</td></tr>
         <tr><td>Traffic violations</td><td>${res.violations}</td></tr>
       </table>
@@ -380,8 +394,8 @@ export class UI {
       <p class="muted" style="font-size:13px;margin:4px 0 10px">Real places along the Lagos–Ibadan Expressway. Drive past them to add them to your collection.</p>
       <div class="plist">${pois.map((p) => {
         const k = known.has(Discovery.key(p));
-        const km = ((p.s - r.startS) / 1000).toFixed(1);
-        return `<div class="pi ${k ? '' : 'locked'}"><span class="pic">${k ? CATEGORY_ICON[p.cat] ?? '📍' : '❔'}</span><div><b>${k ? p.name : '???'}</b><div class="muted" style="font-size:12px">${k ? CATEGORY_LABEL[p.cat] ?? '' : 'Undiscovered'} · km ${km} from Ojota${HERO[p.name] ? ' · ★ landmark' : ''}</div></div></div>`;
+        const tu = fmtTU(p.s - r.startS);
+        return `<div class="pi ${k ? '' : 'locked'}"><span class="pic">${k ? CATEGORY_ICON[p.cat] ?? '📍' : '❔'}</span><div><b>${k ? p.name : '???'}</b><div class="muted" style="font-size:12px">${k ? CATEGORY_LABEL[p.cat] ?? '' : 'Undiscovered'} · ${tu} from Ojota${HERO[p.name] ? ' · ★ landmark' : ''}</div></div></div>`;
       }).join('')}</div>
       <button class="btn wide" data-a="back" style="margin-top:10px">Back</button></div></div>`));
     el.querySelector('[data-a=back]')!.addEventListener('click', () => this.game.enterMenu('start'));
@@ -396,6 +410,8 @@ export class UI {
       <div class="set"><span>Sound volume</span><input type="range" min="0" max="1" step="0.05" data-s="sound"></div>
       <div class="set"><span>Music volume <span class="muted" style="font-size:12px">(radio coming soon)</span></span><input type="range" min="0" max="1" step="0.05" data-s="music"></div>
       <div class="set"><span>Controls</span><select data-s="controls"><option value="buttons">Touch buttons</option><option value="tilt">Tilt to steer</option></select></div>
+      <div class="set"><span>Game pace <span class="muted" style="font-size:12px">(game time and road speed)</span></span><select data-s="pace">${Object.entries(PACES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></div>
+      <div class="set"><span>Fares</span><select data-s="fareMode"><option value="conductor">Conductor collects</option><option value="manual">I collect (when stopped)</option></select></div>
       <div class="set"><span>Voice navigation</span><select data-s="voice"><option value="1">On</option><option value="0">Off</option></select></div>
       <div class="set"><span>Language</span><select data-s="language"><option value="en">English</option></select></div>
       <p class="muted" style="font-size:12px">Graphics quality changes tree and house density after the game reloads.</p>
@@ -403,8 +419,9 @@ export class UI {
     const q = (k: string) => el.querySelector(`[data-s=${k}]`) as HTMLInputElement & HTMLSelectElement;
     q('quality').value = cur.quality; q('sound').value = String(cur.sound); q('music').value = String(cur.music);
     q('controls').value = cur.controls; q('voice').value = cur.voice ? '1' : '0'; q('language').value = cur.language;
+    q('pace').value = cur.pace; q('fareMode').value = cur.fareMode;
     el.querySelector('[data-a=save]')!.addEventListener('click', async () => {
-      const next: Settings = { quality: q('quality').value as Settings['quality'], sound: +q('sound').value, music: +q('music').value, controls: q('controls').value as Settings['controls'], voice: q('voice').value === '1', language: 'en' };
+      const next: Settings = { quality: q('quality').value as Settings['quality'], sound: +q('sound').value, music: +q('music').value, controls: q('controls').value as Settings['controls'], voice: q('voice').value === '1', language: 'en', pace: q('pace').value as Pace, fareMode: q('fareMode').value as Settings['fareMode'] };
       if (next.controls === 'tilt') {
         const DOE = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
         if (DOE?.requestPermission) { try { await DOE.requestPermission(); } catch { /* denied */ } }

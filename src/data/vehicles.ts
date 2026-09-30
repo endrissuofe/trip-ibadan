@@ -32,7 +32,7 @@ export const VEHICLES: VehicleDef[] = [
     id: 'sienna', name: 'Toyota Sienna', type: 'minivan', model: 'sienna', bodyColor: '#b7bcc1',
     tagline: 'Comfortable and reliable for intercity travel.',
     maxSpeed: 165, acceleration: 3.4, braking: 8.5, handling: 8,
-    fuelCapacity: 75, fuelConsumption: 11, passengerCapacity: 7, damageResistance: 1.0,
+    fuelCapacity: 75, fuelConsumption: 11, passengerCapacity: 6, damageResistance: 1.0, // 8-seater: driver + conductor + 6 passengers
     speedLimit: 100, length: 5.1, width: 2.0, status: 'owned', price: 0,
     ratings: { speed: 7, handling: 8, fuel: 6 },
   },

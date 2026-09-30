@@ -8,7 +8,8 @@ import { Route, LANE_W } from './map/Route';
 import { World } from './world/World';
 import { TRIPS, TripDef, ROUTE_ID } from './data/trips';
 import { VehicleDef, vehicleById, VEHICLES } from './data/vehicles';
-import { PlayerVehicle, Controls } from './systems/Driving';
+import { PlayerVehicle, Controls, Gear } from './systems/Driving';
+import { GameClock } from './systems/GameClock';
 import { Traffic } from './systems/Traffic';
 import { Riders } from './systems/Riders';
 import { Passengers } from './systems/Passengers';
@@ -52,6 +53,9 @@ export class Game implements GameApi {
   private disabledT = 0;
   private ridersHit = 0;
   private lastSurface = 'expressway';
+  clock = new GameClock();
+  private hintCd = 0;
+  private lookingBack = false;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.save = loadSave();
@@ -85,6 +89,7 @@ export class Game implements GameApi {
       await this.world.build((p, l) => this.ui.loading(0.05 + p * 0.9, l));
       this.rig = new CameraRig(this.scene, this.world);
       this.scene.activeCamera = this.rig.cam;
+      this.rig.mirrorEnabled = this.save.settings.quality === 'high';
       const high = this.save.settings.quality === 'high';
       this.traffic = new Traffic(this.scene, this.world, high ? 1 : 0.7);
       this.riders = new Riders(this.scene, this.world, high ? 7 : 5);
@@ -155,6 +160,7 @@ export class Game implements GameApi {
     this.discovery = new Discovery(this.route, new Set(this.save.discovered));
     this.pax?.dispose();
     this.pax = new Passengers(this.scene, this.world, this.vehicle.passengerCapacity, this.trip.fromId, this.trip.toId);
+    this.clock = new GameClock(this.save.settings.pace);
     this.tripTime = 0; this.throttle = 0; this.brake = 0; this.lastCue = ''; this.disabledT = 0; this.ridersHit = 0;
     this.traffic.spawnAround(this.player!);
     this.riders.spawn(this.player!);
@@ -166,12 +172,34 @@ export class Game implements GameApi {
     this.nav.speak(`Welcome to ${this.trip.from} park. Load your passengers, then head for ${this.trip.to}.`);
   }
 
-  depart() { this.pax?.depart(); }
+  depart() {
+    this.pax?.depart();
+    // leaving the park: engage Drive for the player if they are still in Park/Neutral
+    if (this.player && (this.player.gear === 'P' || this.player.gear === 'N')) this.setGear('D');
+  }
+  setGear(g: Gear) {
+    const p = this.player; if (!p || this.state !== 'drive') return;
+    const before = p.gear;
+    const r = p.requestGear(g);
+    if (!r.ok && r.reason) this.ui.toast(r.reason, 1600);
+    else if (p.gear !== before) { this.audio.click(); this.ui.toast(GEAR_NAME[p.gear], 900); }
+  }
+  shiftGear(dir: 1 | -1) {
+    const p = this.player; if (!p) return;
+    const i = ['P', 'R', 'N', 'D'].indexOf(p.gear) + dir;
+    if (i >= 0 && i < 4) this.setGear((['P', 'R', 'N', 'D'] as Gear[])[i]);
+  }
+  lookBack(on: boolean) { this.lookingBack = on; }
   pause() { if (this.state !== 'drive') return; this.state = 'paused'; this.audio.silence(); this.ui.pause(); }
   resume() { if (this.state !== 'paused') return; this.state = 'drive'; this.ui.releaseInputs(); this.ui.hud(); }
   restart() { this.startDrive(); }
   quitToMenu() { this.traffic.spawnAround(this.player!); this.enterMenu('start'); }
-  toggleCamera() { this.rig.mode = this.rig.mode === 'chase' ? 'hood' : 'chase'; this.rig.snap(); }
+  toggleCamera() {
+    const order = ['chase', 'hood', 'cabin'] as const;
+    const i = order.indexOf(this.rig.mode as typeof order[number]);
+    this.rig.mode = order[(i + 1) % order.length]; this.rig.snap();
+    this.ui.toast(CAM_NAME[this.rig.mode] ?? '', 900);
+  }
 
   applySettings(s: Settings) {
     this.save.settings = s; writeSave(this.save);
@@ -200,6 +228,13 @@ export class Game implements GameApi {
     if (down && (k === 'escape' || k === 'p')) { if (this.state === 'drive') this.pause(); else if (this.state === 'paused') this.resume(); return; }
     if (down && k === 'c' && this.state === 'drive') { this.toggleCamera(); return; }
     if (down && k === 'enter' && this.state === 'drive') { this.depart(); return; }
+    if (this.state === 'drive') {
+      if (down && !e.repeat && k === 'e') { this.shiftGear(1); return; }
+      if (down && !e.repeat && k === 'q') { this.shiftGear(-1); return; }
+      if (down && !e.repeat && k === 'r') { this.setGear('R'); return; }
+      if (down && !e.repeat && k === 'n') { this.setGear('N'); return; }
+      if (k === 'b') { this.lookBack(down); return; }
+    }
     if (down) this.keys.add(k); else this.keys.delete(k);
   }
 
@@ -232,16 +267,22 @@ export class Game implements GameApi {
 
     // --- driving
     const pax = this.pax!;
-    this.tripTime += dt;
+    this.tripTime += this.clock.tick(dt); // trip timer runs on GAME time
     const ctl = this.controls(dt);
-    if (pax.phase === 'loading' && ctl.throttle > 0.3) pax.depart();
-    const engineOn = !this.fuel.empty && !this.damage.disabled;
-    const steps = dt > 1 / 45 ? 2 : 1;
-    for (let i = 0; i < steps; i++) {
-      p.update(dt / steps, ctl, engineOn);
-      this.traffic.update(dt / steps, p);
+    if (pax.phase === 'loading' && ctl.throttle > 0.3) this.depart();
+    this.hintCd -= dt;
+    if (ctl.throttle > 0.3 && (p.gear === 'P' || p.gear === 'N') && this.hintCd <= 0) {
+      this.hintCd = 3; this.ui.toast(`In ${GEAR_NAME[p.gear]}: press E (or tap D) to drive, R to reverse`, 2200);
     }
-    for (const hit of this.riders.update(dt, p)) {
+    const engineOn = !this.fuel.empty && !this.damage.disabled;
+    // World pace: player, traffic and riders all cover the real road `f` times faster when cruising.
+    const f = this.clock.worldScale(p.v);
+    const steps = Math.max(dt > 1 / 45 ? 2 : 1, Math.ceil(dt * f * 60));
+    for (let i = 0; i < steps; i++) {
+      p.update(dt / steps, ctl, engineOn, f);
+      this.traffic.update((dt / steps) * f, p);
+    }
+    for (const hit of this.riders.update(dt * f, p)) {
       this.ridersHit++;
       this.events.add(`Knocked down a ${hit.brand} rider`, (p.s - this.route.startS) / 1000);
       this.ui.toast(`You knocked down a ${hit.brand} rider! −1,500`, 3200);
@@ -261,7 +302,7 @@ export class Game implements GameApi {
       else if (imp.kind === 'building' && imp.kmh > 10) this.ui.toast('Mind the buildings!');
     }
     p.impacts = [];
-    this.fuel.update(dt, p.v, ctl.throttle);
+    this.fuel.update(dt * f, p.v, ctl.throttle);
 
     const msg = this.events.update(dt, p.s, p.kmh, limit, p.psi, p.onExpressway);
     if (msg) { this.ui.toast(msg, 3200); this.audio.chime(); }
@@ -280,9 +321,12 @@ export class Game implements GameApi {
     const cueKey = nav.icon + nav.text;
     if (cueKey !== this.lastCue) { this.lastCue = cueKey; if (p.onExpressway && nav.text !== 'Continue straight') this.nav.speak(`${nav.text}. ${nav.sub}`); }
 
+    this.audio.setReversing(p.gear === 'R');
     this.audio.drive(p.kmh, ctl.throttle, ctl.brake, p.surface === 'bush' || p.surface === 'dirt', engineOn, this.vehicle.type !== 'minivan');
+    this.rig.lookBack = this.lookingBack;
     this.rig.update(dt, p);
     this.ui.updateHud({
+      gear: p.gear, clock: this.clock.timeOfDay(), tripTime: this.tripTime,
       nav, kmh: p.kmh, limit, condition: this.damage.condition, fuel: this.fuel.level,
       x: p.pos.x, z: p.pos.z, heading: p.heading,
       aboard: pax.aboard.length, capacity: pax.capacity, comfort: pax.comfort, earned: pax.fares + pax.tips + this.discovery.bonus,
@@ -329,6 +373,17 @@ export class Game implements GameApi {
   }
 
   /** Debug hook for automated checks: jump along the route (km from the trip start). */
-  debugTeleport(km: number, d?: number) { if (this.player) { const s = this.route.tripStart + km * 1000; this.player.reset(s, d ?? this.route.nb.halfWidth(s) - LANE_W / 2); this.pax?.depart(); } }
-  get debug() { return { state: this.state, s: this.player?.s, d: this.player?.d, kmh: this.player?.kmh, surface: this.player?.surface, fps: this.engine.getFps(), pos: this.player?.pos ?? Vector3.Zero(), meshes: this.scene.meshes.length, pax: this.pax?.phase }; }
+  debugTeleport(km: number, d?: number) { if (this.player) { const s = this.route.tripStart + km * 1000; this.player.reset(s, d ?? this.route.nb.halfWidth(s) - LANE_W / 2); this.pax?.depart(); this.player.gear = 'D'; } }
+  /** Debug hook: run the simulation for `frames` fixed steps with the given keys held (no rendering). */
+  debugStep(frames: number, keys: string[] = [], dt = 1 / 60) {
+    this.keys.clear(); for (const k of keys) this.keys.add(k);
+    for (let i = 0; i < frames; i++) this.frame(dt);
+    this.keys.clear();
+    return this.debug;
+  }
+  debugRender() { this.scene.render(); }
+  get debug() { return { state: this.state, s: this.player?.s, d: this.player?.d, kmh: this.player?.kmh, surface: this.player?.surface, fps: this.engine.getFps(), pos: this.player?.pos ?? Vector3.Zero(), meshes: this.scene.meshes.length, pax: this.pax?.phase, gear: this.player?.gear, v: this.player?.v, heading: this.player?.heading, x: this.player?.x, z: this.player?.z, tripTime: this.tripTime, cam: this.rig?.mode }; }
 }
+
+const GEAR_NAME: Record<Gear, string> = { P: 'Park', R: 'Reverse', N: 'Neutral', D: 'Drive' };
+const CAM_NAME: Record<string, string> = { chase: 'Chase camera', hood: 'Driver view', cabin: 'Cabin view' };
