@@ -403,6 +403,26 @@ export class Game implements GameApi {
     const x = this.pax; if (!x) return null;
     return { phase: x.phase, aboard: x.aboard.length, seatsFree: x.seatsFree, manifest: x.manifest(), txn: x.txnView(), dispute: x.disputeView(), ledger: { ...x.ledger, net: x.ledger.net }, float: x.float.total, delivered: x.delivered, missed: x.missed, tips: x.tips, states: x.aboard.map((p) => p.state) };
   }
+  /**
+   * Dev/test only: export a stand-in GLB that follows the asset contract (a recoloured body plus
+   * light_* nodes) and load it through the real model pipeline.
+   */
+  async debugModelPipeline() {
+    if (!import.meta.env.DEV || !this.player) return null;
+    const { GLTF2Export } = await import('@babylonjs/serializers/glTF/2.0');
+    const { buildVehicle, vehicleMaterial } = await import('./world/models');
+    const { TransformNode } = await import('@babylonjs/core/Meshes/transformNode');
+    const body = buildVehicle(this.scene, 'suv', '#8e1b1b', 'contract_test_body');
+    body.material = vehicleMaterial(this.scene);
+    const L = TransformNode; const a = new L('light_brake_L', this.scene), b = new L('light_brake_R', this.scene);
+    a.parent = body; b.parent = body; a.position.set(-0.7, 0.85, -2.35); b.position.set(0.7, 0.85, -2.35);
+    const glb = await GLTF2Export.GLBAsync(this.scene, 'contract_test', { shouldExportNode: (n) => n === body || n.parent === body });
+    body.dispose(); a.dispose(); b.dispose();
+    const blob = Object.values(glb.files)[0] as Blob;
+    const url = URL.createObjectURL(blob);
+    await this.player.useModel(this.scene, url);
+    return { loaded: !!this.player.model, nodes: [...(this.player.model?.nodes.keys() ?? [])] };
+  }
   /** Debug: capture HUD feed messages. */
   debugFeed: string[] = [];
   /** Dev/test only: when set, steering holds this lateral offset (m). */

@@ -13,6 +13,9 @@ import { VehicleDef } from '../data/vehicles';
 import { buildVehicle, vehicleMaterial, TrafficKind } from '../world/models';
 import { blobTexture } from '../world/textures';
 import { cabinLayout, buildInterior, CabinLayout, WHEEL_TILT } from '../world/interior';
+import { loadVehicleModel, LoadedModel } from '../world/assets';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
+import { Matrix } from '@babylonjs/core/Maths/math.vector';
 
 export interface Controls { throttle: number; brake: number; steer: number; horn: boolean }
 /** Gear order (change spec §5): PARK → REVERSE → NEUTRAL → DRIVE. */
@@ -69,6 +72,7 @@ export class PlayerVehicle {
     this.interior = buildInterior(scene, this.layout, this.mesh);
     this.steeringWheel = this.interior.getChildMeshes().find((m) => m.metadata?.steering) as Mesh;
     this.steeringWheel.rotationQuaternion = new Quaternion();
+    void this.useModel(scene);
     this.reset(s0, d0);
   }
 
@@ -291,8 +295,32 @@ export class PlayerVehicle {
   setInteriorView(on: boolean) {
     if (on === this.interiorOn) return;
     this.interiorOn = on;
-    this.mesh.isVisible = !on;
+    this.mesh.isVisible = !on && !this.model;
+    this.model?.root.setEnabled(!on);
     this.interior.setEnabled(on);
+  }
+
+  // ------------------------------------------------------------ real 3D model (optional)
+  model: LoadedModel | null = null;
+  private disposed = false;
+  /**
+   * Swap the procedural body for a real GLB when one is listed in public/models/manifest.json.
+   * Lamps snap to the model's light_* nodes when it has them (docs/ASSET-CONTRACT.md).
+   */
+  async useModel(scene: Scene, url?: string) {
+    const m = await loadVehicleModel(scene, this.def.id, url);
+    if (!m || this.disposed) { m?.root.dispose(); return; }
+    this.model?.root.dispose();
+    this.model = m;
+    m.root.parent = this.mesh;
+    this.mesh.isVisible = false;
+    this.mesh.computeWorldMatrix(true);
+    const inv = Matrix.Invert(this.mesh.getWorldMatrix());
+    const localOf = (n: TransformNode) => { n.computeWorldMatrix(true); return Vector3.TransformCoordinates(n.getAbsolutePosition(), inv); };
+    const snap = (lamps: Mesh[], names: [string, string]) => lamps.forEach((l, i) => { const n = m.nodes.get(names[i]); if (n) l.position.copyFrom(localOf(n)); });
+    const brakes = this.mesh.getChildMeshes(true).filter((x) => x.name === 'lamp_brake') as Mesh[];
+    snap(brakes, ['light_brake_L', 'light_brake_R']);
+    snap(this.reverseLamps, ['light_reverse_L', 'light_reverse_R']);
   }
   get interiorView() { return this.interiorOn; }
 
@@ -356,7 +384,7 @@ export class PlayerVehicle {
   /** Toggle an indicator (pressing the same side again turns it off). */
   toggleIndicator(which: 'left' | 'right' | 'hazard') { this.indicator = this.indicator === which ? 'off' : which; this.blinkT = 0; }
 
-  dispose() { this.mesh.dispose(); this.blob.dispose(); this.brakeMat.dispose(); this.reverseMat.dispose(); this.indMat.dispose(); }
+  dispose() { this.disposed = true; this.mesh.dispose(); this.blob.dispose(); this.brakeMat.dispose(); this.reverseMat.dispose(); this.indMat.dispose(); }
 }
 
 /** Move `v` towards zero by `amount`, never crossing it. */
