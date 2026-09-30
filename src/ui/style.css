@@ -203,9 +203,11 @@ input[type=range] { accent-color: var(--blue); }
 .mr .st { font-size: 11px; color: var(--green); }
 .mr.req { background: rgba(22, 136, 255, 0.18); border-radius: 6px; }
 .mr.bad .st { color: var(--amber); }
-.txn, .dispute { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(120px + var(--safe-b)); width: min(340px, 92vw); display: none; }
+.txn, .dispute { position: absolute; right: calc(80px + var(--safe-r)); top: calc(250px + var(--safe-t)); width: min(330px, 60vw); display: none; z-index: 2; }
 .txn.on, .dispute.on { display: block; }
-.dispute { bottom: calc(300px + var(--safe-b)); border-color: #8a6a22; }
+.dispute { border-color: #8a6a22; z-index: 3; }
+.txn.on + .dispute.on { top: calc(250px + var(--safe-t)); }
+@media (pointer: coarse) { .txn, .dispute { right: calc(12px + var(--safe-r)); top: calc(100px + var(--safe-t)); } }
 .txn .kv { padding: 5px 0; font-size: 14px; }
 .row2 { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .row2 .btn { flex: 1; padding: 10px 12px; min-height: 42px; font-size: 13px; }

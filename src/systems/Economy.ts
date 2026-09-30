@@ -8,7 +8,7 @@ export const NOTES = [1000, 500, 200, 100, 50] as const;
 export type Rng = () => number;
 
 /** Conductor's starting change float (note → count). */
-export const START_FLOAT: Record<number, number> = { 1000: 0, 500: 2, 200: 5, 100: 8, 50: 6 };
+export const START_FLOAT: Record<number, number> = { 1000: 0, 500: 4, 200: 10, 100: 15, 50: 12 };
 
 export interface Tender { amount: number; notes: number[] }
 
