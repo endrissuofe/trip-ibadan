@@ -57,6 +57,7 @@ export class Game implements GameApi {
   private hintCd = 0;
   private lookingBack = false;
   private disputeSeen = false;
+  private lastBlink = false;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.save = loadSave();
@@ -238,6 +239,7 @@ export class Game implements GameApi {
       if (down && !e.repeat && k === 'r') { this.setGear('R'); return; }
       if (down && !e.repeat && k === 'n') { this.setGear('N'); return; }
       if (k === 'b') { this.lookBack(down); return; }
+      if (down && !e.repeat && (k === 'z' || k === 'x' || k === 'h')) { this.player?.toggleIndicator(k === 'z' ? 'left' : k === 'x' ? 'right' : 'hazard'); return; }
       if (down && !e.repeat && k === 'f') { const t = this.pax?.txnView(); if (t?.received === null) this.collectFare(); else this.returnChange(); return; }
       if (down && !e.repeat && k === 'm') { document.querySelector('.manifest')?.classList.toggle('hidden'); return; }
     }
@@ -335,6 +337,7 @@ export class Game implements GameApi {
     if (cueKey !== this.lastCue) { this.lastCue = cueKey; if (p.onExpressway && nav.text !== 'Continue straight') this.nav.speak(`${nav.text}. ${nav.sub}`); }
 
     this.audio.setReversing(p.gear === 'R');
+    if (p.blinkOn !== this.lastBlink) { this.lastBlink = p.blinkOn; if (p.blinkOn) this.audio.tick(); }
     this.audio.drive(p.kmh, ctl.throttle, ctl.brake, p.surface === 'bush' || p.surface === 'dirt', engineOn, this.vehicle.type !== 'minivan');
     this.rig.lookBack = this.lookingBack;
     this.rig.update(dt, p);

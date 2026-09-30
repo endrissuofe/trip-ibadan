@@ -105,6 +105,14 @@ export class Audio {
     o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.08);
   }
 
+  /** Indicator relay tick. */
+  tick() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime, o = this.ctx.createOscillator(), g = this.ctx.createGain();
+    o.type = 'square'; o.frequency.value = 1800; g.gain.setValueAtTime(0.03, t); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.03);
+    o.connect(g).connect(this.master); o.start(t); o.stop(t + 0.04);
+  }
+
   chime() {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;

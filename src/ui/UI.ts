@@ -240,7 +240,7 @@ export class UI {
       <div class="loadpanel hbox" data-h="load"><div><b data-h="loadT"></b><div class="muted" style="font-size:12px">Passengers are boarding. Accelerate or tap Depart when ready.</div></div><button class="btn primary" data-a="depart">Depart</button></div>
       ${touch ? `<div class="ctl left"><button class="circle" data-k="left" aria-label="Steer left">◀</button><button class="circle" data-k="right" aria-label="Steer right">▶</button></div>
       <div class="ctl right"><button class="circle small" data-k="horn">HORN</button><button class="pedal brake" data-k="brake">BRAKE</button><button class="pedal accel" data-k="accel">ACCEL</button></div>`
-        : `<div class="keys-hint">W/↑ accelerate · S/↓ brake · A D/← → steer · E/Q gear up/down (P R N D) · R reverse · B look back · C camera · M passengers · F fare · Space horn · Esc pause</div>`}
+        : `<div class="keys-hint">W/↑ accelerate · S/↓ brake · A D/← → steer · E/Q gear up/down (P R N D) · R reverse · Z/X indicators · H hazards · B look back · C camera · M passengers · F fare · Space horn · Esc pause</div>`}
       <div class="rotate ${touch ? 'need' : ''}">↻ Turn your phone sideways to drive</div>
     </div>`));
     this.hudEls = {};

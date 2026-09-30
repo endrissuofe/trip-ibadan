@@ -272,6 +272,8 @@ export class PlayerVehicle {
     this.mesh.position.set(this.x, this.y + jitter * 0.6, this.z);
     this.pos.copyFrom(this.mesh.position);
     this.blob.position.set(this.x, this.y + 0.05, this.z);
+    this.blinkT += dt;
+    this.blinkOn = this.indicator !== 'off' && this.blinkT % 0.7 < 0.35;
     this.syncLights();
     if (this.interiorOn) {
       const a = -this.steerSm * 2.4; // wheel turns ~140° at full lock
@@ -298,6 +300,13 @@ export class PlayerVehicle {
   private brakeMat!: StandardMaterial;
   private reverseMat!: StandardMaterial;
   private reverseLamps: Mesh[] = [];
+  private indicatorLamps: { m: Mesh; side: -1 | 1 }[] = [];
+  private indMat!: StandardMaterial;
+  /** Turn indicators / hazards (toggle). */
+  indicator: 'off' | 'left' | 'right' | 'hazard' = 'off';
+  private blinkT = 0;
+  /** True on the "on" half of the blink cycle (for the HUD and the tick sound). */
+  blinkOn = false;
 
   /** Brake and reverse lamps as separate emissive meshes on the rear of the body. */
   private buildLights(scene: Scene) {
@@ -320,15 +329,34 @@ export class PlayerVehicle {
       r.isVisible = false;
       this.reverseLamps.push(r);
     }
+    // indicators: rear corners and front corners
+    this.indMat = new StandardMaterial('indicatorMat', scene);
+    this.indMat.diffuseColor = Color3.Black(); this.indMat.specularColor = Color3.Black();
+    this.indMat.emissiveColor = new Color3(1, 0.55, 0.05); this.indMat.backFaceCulling = false;
+    for (const sx of [-1, 1] as const) for (const zEnd of [z, -z]) {
+      const m = MeshBuilder.CreatePlane('lamp_indicator', { width: 0.16, height: 0.1 }, scene);
+      m.material = this.indMat; m.parent = this.mesh; m.metadata = { dynamic: true };
+      m.position.set(sx * (spot.bx + 0.08), zEnd < 0 ? spot.by - 0.3 : spot.ry + 0.05, zEnd + (zEnd < 0 ? -0.006 : 0.006));
+      if (zEnd > 0) m.rotation.y = Math.PI;
+      m.isVisible = false;
+      this.indicatorLamps.push({ m, side: sx });
+    }
   }
 
   private syncLights() {
     const on = this.braking;
     this.brakeMat.emissiveColor.set(on ? 1 : 0.35, on ? 0.08 : 0.02, on ? 0.08 : 0.03);
     for (const r of this.reverseLamps) r.isVisible = this.gear === 'R' && this.mesh.isVisible;
+    const ind = this.indicator;
+    for (const l of this.indicatorLamps) {
+      const want = ind === 'hazard' || (ind === 'left' && l.side === -1) || (ind === 'right' && l.side === 1);
+      l.m.isVisible = want && this.blinkOn && this.mesh.isVisible;
+    }
   }
+  /** Toggle an indicator (pressing the same side again turns it off). */
+  toggleIndicator(which: 'left' | 'right' | 'hazard') { this.indicator = this.indicator === which ? 'off' : which; this.blinkT = 0; }
 
-  dispose() { this.mesh.dispose(); this.blob.dispose(); this.brakeMat.dispose(); this.reverseMat.dispose(); }
+  dispose() { this.mesh.dispose(); this.blob.dispose(); this.brakeMat.dispose(); this.reverseMat.dispose(); this.indMat.dispose(); }
 }
 
 /** Move `v` towards zero by `amount`, never crossing it. */
