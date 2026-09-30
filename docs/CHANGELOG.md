@@ -21,7 +21,7 @@ Implements the P0 items of the *Developer Change Specification r1.0* on the exis
 - Passengers **walk to the vehicle, get in through the passenger door, sit in their own seat**, say where they're going, and **walk away** at their stop. They leave the passenger list only after they've got out.
 - A **conductor** sits in the front passenger seat, asks for the fare, takes the money and returns change from a **real float of Naira notes**. When there's no change he owes it and pays later ("I go give you your change").
 - **Fare panel** (Received / Change). Settings → Fares: *Conductor collects* (default) or *I collect* (COLLECT / RETURN CHANGE buttons, only while stopped; F key).
-- **Occasional change disputes** (about 1 in 12 payments, never back-to-back). Check the money, pay the passenger, or back the conductor; if you don't decide, he counts it himself.
+- **Occasional change disputes** (roughly 1 in 15 payments, never back-to-back). Check the money, pay the passenger, or back the conductor; if you don't decide, he counts it himself.
 - **Dialogue system** with Nigerian Pidgin, English and some Yoruba lines (`src/data/dialogue.ts`), varied with no back-to-back repeats.
 - **Passenger list** (📋 / M) with seat, destination, payment status and mood; passengers who want to get down are highlighted, and a sign appears over their head in the cabin view.
 - **Trip summary:** passengers served, fares collected, change returned, disputed fares, unpaid fares, refunds and change losses.
