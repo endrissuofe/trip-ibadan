@@ -4,7 +4,7 @@ import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { Scene } from '@babylonjs/core/scene';
 import { Color4, Color3 } from '@babylonjs/core/Maths/math.color';
 import { MeshBuilder } from '@babylonjs/core/Meshes/meshBuilder';
-import { Matrix } from '@babylonjs/core/Maths/math.vector';
+import { Matrix, Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
 
 export const hex = (h: string, a = 1) => { const c = Color3.FromHexString(h); return new Color4(c.r, c.g, c.b, a); };
@@ -99,6 +99,39 @@ export class PartBuilder {
     const m = new Mesh('p', this.scene); vd.applyToMesh(m);
     return this.paint(m, hex(color));
   }
+
+  /** Ellipsoid centred at (cx, cy, cz) with radii rx, ry, rz. */
+  ellipsoid(cx: number, cy: number, cz: number, rx: number, ry: number, rz: number, color: string, seg = 10) {
+    const m = MeshBuilder.CreateSphere('p', { diameterX: rx * 2, diameterY: ry * 2, diameterZ: rz * 2, segments: seg }, this.scene);
+    m.bakeTransformIntoVertices(Matrix.Translation(cx, cy, cz));
+    return this.paint(m, hex(color));
+  }
+
+  /** Vertical tapered cylinder (e.g. torso, skirt), flattened front-to-back by `depth`. */
+  taper(cx: number, cy: number, cz: number, rTop: number, rBottom: number, h: number, color: string, depth = 0.7, tess = 14) {
+    const m = MeshBuilder.CreateCylinder('p', { diameterTop: rTop * 2, diameterBottom: rBottom * 2, height: h, tessellation: tess }, this.scene);
+    m.bakeTransformIntoVertices(Matrix.Scaling(1, 1, depth).multiply(Matrix.Translation(cx, cy, cz)));
+    return this.paint(m, hex(color));
+  }
+
+  /** Capsule (rounded limb) from point a to point b. */
+  capsule(a: [number, number, number], b: [number, number, number], r: number, color: string, tess = 8) {
+    const A = new Vector3(...a), B = new Vector3(...b);
+    const d = B.subtract(A), len = d.length();
+    const m = MeshBuilder.CreateCapsule('p', { radius: r, height: len + r * 2, tessellation: tess, subdivisions: 1, capSubdivisions: 3 }, this.scene);
+    const q = new Quaternion();
+    const up = new Vector3(0, 1, 0), dir = d.normalizeToNew();
+    const axis = Vector3.Cross(up, dir);
+    const dot = Math.max(-1, Math.min(1, Vector3.Dot(up, dir)));
+    if (axis.lengthSquared() < 1e-8) Quaternion.RotationAxisToRef(new Vector3(1, 0, 0), dot > 0 ? 0 : Math.PI, q);
+    else Quaternion.RotationAxisToRef(axis.normalize(), Math.acos(dot), q);
+    const rot = new Matrix(); q.toRotationMatrix(rot);
+    const mid = A.add(B).scale(0.5);
+    m.bakeTransformIntoVertices(rot.multiply(Matrix.Translation(mid.x, mid.y, mid.z)));
+    return this.paint(m, hex(color));
+  }
+
+  get count() { return this.parts.length; }
 
   build(): Mesh {
     const m = Mesh.MergeMeshes(this.parts, true, true)!;
