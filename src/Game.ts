@@ -254,6 +254,11 @@ export class Game implements GameApi {
     this.brake += ((brake ? 1 : 0) - this.brake) * Math.min(1, dt * 6);
     let steer = (right ? 1 : 0) - (left ? 1 : 0);
     if (T.tilt !== null && this.save.settings.controls === 'tilt' && !left && !right) steer = T.tilt;
+    if (this.debugAutoSteer && this.player) { // dev/test only: keep lane
+      const p = this.player, lane = this.debugAutoSteer;
+      const look = 18 * this.clock.worldScale(p.v) + 10;
+      steer = Math.max(-1, Math.min(1, (-Math.atan2(p.d - lane, look) - p.psi) * 4));
+    }
     return { throttle: this.throttle, brake: this.brake, steer, horn: K.has(' ') || T.horn };
   }
 
@@ -397,6 +402,8 @@ export class Game implements GameApi {
   }
   /** Debug: capture HUD feed messages. */
   debugFeed: string[] = [];
+  /** Dev/test only: when set, steering holds this lateral offset (m). */
+  debugAutoSteer = 0;
   get debug() { return { state: this.state, s: this.player?.s, d: this.player?.d, kmh: this.player?.kmh, surface: this.player?.surface, fps: this.engine.getFps(), pos: this.player?.pos ?? Vector3.Zero(), meshes: this.scene.meshes.length, pax: this.pax?.phase, gear: this.player?.gear, v: this.player?.v, heading: this.player?.heading, x: this.player?.x, z: this.player?.z, tripTime: this.tripTime, cam: this.rig?.mode }; }
 }
 
