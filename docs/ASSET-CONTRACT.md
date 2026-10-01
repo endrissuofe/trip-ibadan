@@ -17,6 +17,7 @@ The key is the vehicle id from `src/data/vehicles.ts` (`sienna`, `bus`, `hiace`,
 
 - **GLB (glTF 2.0)**, metres, **+Z forward, +Y up**, origin on the ground at the centre of the vehicle.
 - PBR materials: base colour, normal, roughness/metallic, ambient occlusion. Glass as a separate transparent material.
+- Until the game gets a reflection map, keep metalness low (≤ 0.3); fully metallic paint and chrome render dark.
 - Target budget for mid-range laptops: **≤ 60k triangles** for the player vehicle, textures ≤ 2048². Provide a lower LOD (≤ 15k) if possible.
 - Left-hand drive (driver on the left, as in Nigeria). Passenger door on the right side.
 
@@ -26,7 +27,7 @@ Empty nodes (or meshes) with these exact names. Items marked ✅ are already use
 
 | Node | Used for | Status |
 |---|---|---|
-| `light_brake_L`, `light_brake_R` | Brake lamps snap here | ✅ |
+| `light_brake_L`, `light_brake_R` | Brake lamps snap here. Optional: node scale X/Y = lens width/height in metres, to size the glow | ✅ |
 | `light_reverse_L`, `light_reverse_R` | Reverse lamps snap here | ✅ |
 | `indicator_FL`, `indicator_FR`, `indicator_RL`, `indicator_RR` | Turn indicators snap here | ✅ |
 | `headlight_L`, `headlight_R` | Night lighting | next |

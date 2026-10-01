@@ -317,12 +317,16 @@ export class PlayerVehicle {
     this.mesh.computeWorldMatrix(true);
     const inv = Matrix.Invert(this.mesh.getWorldMatrix());
     const localOf = (n: TransformNode) => { n.computeWorldMatrix(true); return Vector3.TransformCoordinates(n.getAbsolutePosition(), inv); };
-    const snap = (lamps: Mesh[], names: [string, string]) => lamps.forEach((l, i) => { const n = m.nodes.get(names[i]); if (n) l.position.copyFrom(localOf(n)); });
+    // lamp lens size travels in the node's scale (width, height); base glow planes are bw × bh
+    const snap = (lamps: Mesh[], names: [string, string], bw: number, bh: number) => lamps.forEach((l, i) => {
+      const n = m.nodes.get(names[i]); if (!n) return;
+      l.position.copyFrom(localOf(n));
+      const sx = Math.abs(n.scaling.x), sy = Math.abs(n.scaling.y);
+      if (sx !== 1 || sy !== 1) l.scaling.set(sx / bw, sy / bh, 1);
+    });
     const brakes = this.mesh.getChildMeshes(true).filter((x) => x.name === 'lamp_brake') as Mesh[];
-    snap(brakes, ['light_brake_L', 'light_brake_R']);
-    snap(this.reverseLamps, ['light_reverse_L', 'light_reverse_R']);
-    // model lamps are smaller than the stand-in's: shrink the glow planes to fit the lenses
-    if (m.nodes.has('light_brake_L')) for (const b of brakes) b.scaling.set(0.55, 0.85, 1);
+    snap(brakes, ['light_brake_L', 'light_brake_R'], 0.3, 0.5);
+    snap(this.reverseLamps, ['light_reverse_L', 'light_reverse_R'], 0.2, 0.12);
     for (const l of this.indicatorLamps) {
       const front = l.m.rotation.y !== 0;
       const n = m.nodes.get(`indicator_${front ? 'F' : 'R'}${l.side < 0 ? 'L' : 'R'}`);

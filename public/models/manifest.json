@@ -3,6 +3,9 @@
   "vehicles": {
     "hiace": {
       "file": "vehicles/hiace.glb"
+    },
+    "sienna": {
+      "file": "vehicles/sienna.glb"
     }
   },
   "characters": []

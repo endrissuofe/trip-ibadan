@@ -68,8 +68,8 @@ M = {
     'glass': mat('glass', (0.04, 0.06, 0.07), rough=0.04, alpha=0.42),
     'black': mat('black_plastic', (0.025, 0.027, 0.03), rough=0.55),
     'rubber': mat('tyre_rubber', (0.018, 0.018, 0.018), rough=0.92),
-    'steel': mat('wheel_steel', (0.62, 0.64, 0.66), metal=1.0, rough=0.32),
-    'chrome': mat('chrome', (0.9, 0.9, 0.92), metal=1.0, rough=0.08),
+    'steel': mat('wheel_steel', (0.66, 0.68, 0.7), metal=0.3, rough=0.35),
+    'chrome': mat('chrome', (0.85, 0.86, 0.88), metal=0.3, rough=0.15),
     'head': mat('headlamp_lens', (0.85, 0.88, 0.9), rough=0.05, emit=(1, 0.97, 0.9), emit_strength=0.4),
     'red': mat('tail_red', (0.55, 0.02, 0.03), rough=0.15, emit=(0.6, 0.02, 0.02), emit_strength=0.3),
     'amber': mat('indicator_amber', (0.95, 0.5, 0.05), rough=0.15),
@@ -370,8 +370,8 @@ box('steering_column', -0.406, 1.12, 1.72, 0.06, 0.06, 0.35, M['black'], interio
 
 # ------------------------------------------------------------------ contract nodes (docs/ASSET-CONTRACT.md)
 for s, side in ((-1, 'L'), (1, 'R')):
-    empty(f'light_brake_{side}', s * 0.82, 1.05, -L2 - 0.045, root)
-    empty(f'light_reverse_{side}', s * 0.82, 0.68, -L2 - 0.045, root)
+    empty(f'light_brake_{side}', s * 0.82, 1.05, -L2 - 0.045, root).scale = (0.15, 1, 0.4)
+    empty(f'light_reverse_{side}', s * 0.82, 0.68, -L2 - 0.045, root).scale = (0.15, 1, 0.07)
     empty(f'indicator_R{side}', s * 0.82, 0.78, -L2 - 0.045, root)
     empty(f'indicator_F{side}', s * 0.86, 0.72, L2 + 0.06, root)
     empty(f'headlight_{side}', s * 0.66, 0.84, L2 + 0.06, root)

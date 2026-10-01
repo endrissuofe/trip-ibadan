@@ -17,6 +17,7 @@ Every asset is procedural or open data. There are **no third-party model, textur
 | File | What | Source | Licence |
 |---|---|---|---|
 | `vehicles/hiace.glb` | Hiace-style 14-seat minibus: unbadged, white with Lagos–Ibadan livery, roof rack with luggage, sliding door, interior with seats, named lamp/seat/camera nodes | Built for this project from script (`tools/blender/build_bus.py`) | Project-owned |
+| `vehicles/sienna.glb` | Sienna-style 8-seat minivan: unbadged, silver, sliding doors both sides, roof rails with a bag, alloy wheels, interior with front seats and two benches, named lamp/seat/camera nodes | Built for this project from script (`tools/blender/build_van.py`) | Project-owned |
 
 ## People (`src/world/people.ts`)
 Procedural passengers, conductor and bystanders built from a random `Look`: seven skin tones, men and women, young/adult/elder, build and height variety; faces (eyes, brows, nose, mouth, ears); hair (low cut, afro, braids, bun, bald); headwear (gele, fila, scarf, cap); clothing (ankara wrapper and blouse with bands, gowns, skirts, kaftan with embroidered placket, agbada, shirts, polos, trousers); bags and walking canes. Standing, seated, walking (swinging limbs) and conductor (reaching arm) versions.
