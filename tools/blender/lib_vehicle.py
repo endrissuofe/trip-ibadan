@@ -50,6 +50,7 @@ M = {
     'paint': mat('body_paint', (0.88, 0.89, 0.87), metal=0.05, rough=0.28, coat=0.6),
     'inner': mat('interior_trim', (0.42, 0.43, 0.44), rough=0.8),
     'glass': mat('glass', (0.04, 0.06, 0.07), rough=0.04, alpha=0.42),
+    'windscreen': mat('windscreen', (0.1, 0.12, 0.13), rough=0.03, alpha=0.16),
     'black': mat('black_plastic', (0.025, 0.027, 0.03), rough=0.55),
     'rubber': mat('tyre_rubber', (0.018, 0.018, 0.018), rough=0.92),
     'steel': mat('wheel_steel', (0.5, 0.48, 0.45), metal=0.3, rough=0.5),

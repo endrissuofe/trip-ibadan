@@ -31,16 +31,16 @@ Empty nodes (or meshes) with these exact names. Items marked ✅ are already use
 | `light_reverse_L`, `light_reverse_R` | Reverse lamps snap here | ✅ |
 | `indicator_FL`, `indicator_FR`, `indicator_RL`, `indicator_RR` | Turn indicators snap here | ✅ |
 | `headlight_L`, `headlight_R` | Night lighting | next |
-| `driver_cam` | Driver's eye point | next |
-| `cabin_cam` | Passenger-compartment camera | next |
-| `reverse_cam` | Reversing camera | next |
-| `mirror_rear` | Rear-view display | next |
-| `seat_01` … `seat_NN` | Passenger seats (hip point on the cushion, facing +Z). Count must equal the vehicle's capacity | next |
-| `conductor_seat` | Conductor's seat | next |
-| `door_passenger` | Where passengers get in/out | next |
-| `steering_wheel` | Turns with steering (rotates about its local Z) | next |
+| `driver_cam` | Driver's eye point | ✅ |
+| `cabin_cam` | Passenger-compartment camera | ✅ |
+| `reverse_cam` | Reversing camera: put it just outside the tailgate, above the number plate | ✅ |
+| `mirror_rear` | Rear-view display | ✅ |
+| `seat_01` … `seat_NN` | Passenger seats (hip point on the cushion, facing +Z). Count must equal the vehicle's capacity | ✅ |
+| `conductor_seat` | Conductor's seat | ✅ |
+| `door_passenger` | Where passengers get in/out | ✅ |
+| `steering_wheel` | Turns with steering (spins about its local Y in glTF, i.e. Blender's local Z) | ✅ |
 | `wheel_FL`, `wheel_FR`, `wheel_RL`, `wheel_RR` | Wheel spin/steer | next |
-| `interior` | Everything only visible from inside (dashboard, seats, trim) | next |
+| `interior` | Everything only visible from inside (dashboard, seats, trim). With a model, the driver and cabin views use it instead of the stand-in | ✅ |
 
 Until the "next" items are wired, seats and cameras come from `src/world/interior.ts` (`cabinLayout`). Keep model seat positions close to those, or send the model and we'll read them from the nodes.
 

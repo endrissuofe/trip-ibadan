@@ -83,7 +83,7 @@ for i, (z0, z1) in enumerate(SIDE_WINDOWS):
     for s in (-1, 1):
         glass_panel(f'glass_side_{i}_{"L" if s < 0 else "R"}', z0, z1, WIN_Y0, WIN_Y1, s)
 ws_glass = [(p0[0] + nz * 0.01, p0[1] + ny * 0.01), (p1[0] + nz * 0.01, p1[1] + ny * 0.01), (p1[0] - nz * 0.004, p1[1] - ny * 0.004), (p0[0] - nz * 0.004, p0[1] - ny * 0.004)]
-prism('glass_windscreen', ws_glass, -W / 2 + 0.1, W / 2 - 0.1, M['glass'], root)
+prism('glass_windscreen', ws_glass, -W / 2 + 0.1, W / 2 - 0.1, M['windscreen'], root)
 box('glass_rear', 0, (WIN_Y0 + WIN_Y1) / 2, -L2 - 0.005, W - 0.32, WIN_Y1 - WIN_Y0 + 0.02, 0.012, M['glass'], root)
 # rubber surrounds and black B/C pillars between side windows (typical van look)
 for z0, z1 in zip([w[1] for w in SIDE_WINDOWS[1:]], [w[0] for w in SIDE_WINDOWS[:-1]]):
@@ -231,7 +231,7 @@ for s, side in ((-1, 'L'), (1, 'R')):
     empty(f'headlight_{side}', s * 0.66, 0.84, L2 + 0.06, root)
 empty('driver_cam', DRIVER[0], 1.62, DRIVER[1] - 0.05, root)
 empty('cabin_cam', 0, 1.95, 1.55, root)
-empty('reverse_cam', 0, 1.95, -L2 + 0.1, root)
+empty('reverse_cam', 0, 1.3, -L2 - 0.05, root)
 empty('mirror_rear', 0, 1.9, -L2 + 0.3, root)
 empty('door_passenger', W / 2 + 0.35, 0, 0.55, root)
 empty('conductor_seat', COND[0], 0.62, COND[1], root)

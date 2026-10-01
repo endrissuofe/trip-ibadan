@@ -69,7 +69,7 @@ for s in (-1, 1):
     x0, x1 = (s * (W / 2 - 0.02), s * (W / 2 - 0.005))
     prism('glass_aq', [(0.85, 1.11), (1.29, 1.11), (0.85, 1.57)], min(x0, x1), max(x0, x1), M['glass'], root)
 ws_glass = [(p0[0] + nz * 0.01, p0[1] + ny * 0.01), (p1[0] + nz * 0.01, p1[1] + ny * 0.01), (p1[0] - nz * 0.004, p1[1] - ny * 0.004), (p0[0] - nz * 0.004, p0[1] - ny * 0.004)]
-prism('glass_windscreen', ws_glass, -W / 2 + 0.11, W / 2 - 0.11, M['glass'], root)
+prism('glass_windscreen', ws_glass, -W / 2 + 0.11, W / 2 - 0.11, M['windscreen'], root)
 prism('glass_rear', [(-L2 - 0.005, 1.11), (-L2 + 0.012, 1.11), (-L2 + 0.09, 1.56), (-L2 + 0.073, 1.56)], -W / 2 + 0.19, W / 2 - 0.19, M['glass'], root)
 # black B and C pillars, and black window surround strip
 for zc, wdt in ((0.02, 0.1), (-1.08, 0.1)):
@@ -204,7 +204,7 @@ for s, side in ((-1, 'L'), (1, 'R')):
     empty(f'headlight_{side}', s * 0.67, 0.87, L2 + 0.07, root)
 empty('driver_cam', DRIVER[0], 1.33, DRIVER[1] - 0.05, root)
 empty('cabin_cam', 0, 1.6, 0.9, root)
-empty('reverse_cam', 0, 1.15, -L2 - 0.02, root)
+empty('reverse_cam', 0, 1.18, -L2 - 0.03, root)
 empty('mirror_rear', 0, 1.55, 0.6, root)
 empty('door_passenger', W / 2 + 0.35, 0, -0.6, root)
 empty('conductor_seat', COND[0], 0.62, COND[1], root)

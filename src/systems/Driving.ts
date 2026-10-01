@@ -279,7 +279,10 @@ export class PlayerVehicle {
     this.blinkT += dt;
     this.blinkOn = this.indicator !== 'off' && this.blinkT % 0.7 < 0.35;
     this.syncLights();
-    if (this.interiorOn) {
+    if (this.modelWheel) {
+      // the torus's own axis is its local Y: spin around it
+      this.modelWheel.rotationQuaternion = this.modelWheelBase.multiply(Quaternion.RotationAxis(Vector3.Up(), this.steerSm * 2.4));
+    } else if (this.interiorOn) {
       const a = -this.steerSm * 2.4; // wheel turns ~140° at full lock
       Quaternion.RotationAxisToRef(new Vector3(0, Math.cos(WHEEL_TILT), Math.sin(WHEEL_TILT)), a, this.steeringWheel.rotationQuaternion!);
     }
@@ -296,8 +299,9 @@ export class PlayerVehicle {
     if (on === this.interiorOn) return;
     this.interiorOn = on;
     this.mesh.isVisible = !on && !this.model;
-    this.model?.root.setEnabled(!on);
-    this.interior.setEnabled(on);
+    // a real model brings its own cabin (seats, dashboard, wheel): keep it and skip the stand-in interior
+    this.model?.root.setEnabled(true);
+    this.interior.setEnabled(on && !this.model);
   }
 
   // ------------------------------------------------------------ real 3D model (optional)
@@ -332,7 +336,21 @@ export class PlayerVehicle {
       const n = m.nodes.get(`indicator_${front ? 'F' : 'R'}${l.side < 0 ? 'L' : 'R'}`);
       if (n) { l.m.position.copyFrom(localOf(n)); l.m.scaling.set(0.9, 0.9, 1); }
     }
+    // the model's cabin replaces the stand-in layout: seats, conductor, door, cameras (docs/ASSET-CONTRACT.md)
+    const L = this.layout;
+    const at = (name: string) => { const n = m.nodes.get(name); return n ? localOf(n) : undefined; };
+    const seats = [...m.nodes.keys()].filter((k) => /^seat_\d+$/.test(k)).sort().map((k) => localOf(m.nodes.get(k)!));
+    if (seats.length >= this.def.passengerCapacity) L.seats = seats.slice(0, this.def.passengerCapacity).map((v) => ({ x: v.x, y: v.y, z: v.z }));
+    const cs = at('conductor_seat'); if (cs) L.conductorSeat = { x: cs.x, y: cs.y, z: cs.z };
+    const door = at('door_passenger'); if (door) L.door = { x: door.x, z: door.z };
+    const eye = at('driver_cam'); if (eye) L.driverEye = eye;
+    L.cams = { cabin: at('cabin_cam'), reverse: at('reverse_cam'), mirror: at('mirror_rear') };
+    const sw = m.nodes.get('steering_wheel');
+    if (sw) { this.modelWheel = sw; this.modelWheelBase = (sw.rotationQuaternion ?? Quaternion.FromEulerVector(sw.rotation)).clone(); }
+    this.interior.setEnabled(false);
   }
+  private modelWheel: TransformNode | null = null;
+  private modelWheelBase = new Quaternion();
   get interiorView() { return this.interiorOn; }
 
   // ------------------------------------------------------------ lights

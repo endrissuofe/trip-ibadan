@@ -90,10 +90,12 @@ export class CameraRig {
     } else if (this.mode === 'hood') {
       const L = target.layout;
       rigid = true;
+      const rc = L.cams?.reverse;
       if (target.reversing || this.lookBack) {
         // reversing camera at the tailgate, looking back and down
-        wantPos = this.local(target, 0, L.roofY - 0.25, L.rearZ + 0.15);
-        wantLook = this.local(target, 0, 0.2, L.rearZ - 9);
+        // a model's reverse_cam sits on the outside of the tailgate, above the number plate
+        wantPos = rc ? this.local(target, rc.x, rc.y, rc.z - 0.05) : this.local(target, 0, L.roofY - 0.25, L.rearZ + 0.15);
+        wantLook = rc ? this.local(target, rc.x, 0.0, rc.z - 6) : this.local(target, 0, 0.2, L.rearZ - 9);
         cam.fov = 1.25;
       } else {
         const e = L.driverEye;
@@ -101,8 +103,9 @@ export class CameraRig {
         wantLook = this.local(target, e.x * 0.6, e.y - 0.35, e.z + 30);
         cam.fov = 1.1;
         if (showMirror) {
-          this.mirror.position.copyFrom(this.local(target, 0, L.roofY - 0.12, L.rearZ + 0.3));
-          this.mirror.setTarget(this.local(target, 0, L.windowY, L.rearZ - 40));
+          const mc = L.cams?.mirror;
+          this.mirror.position.copyFrom(mc ? this.local(target, mc.x, mc.y, mc.z) : this.local(target, 0, L.roofY - 0.12, L.rearZ + 0.3));
+          this.mirror.setTarget(mc ? this.local(target, mc.x, mc.y - 0.5, mc.z - 40) : this.local(target, 0, L.windowY, L.rearZ - 40));
         }
       }
     } else {
@@ -112,6 +115,10 @@ export class CameraRig {
       if (this.lookBack) {
         wantPos = this.local(target, 0, L.roofY - 0.2, L.rearZ + 0.25);
         wantLook = this.local(target, 0, L.floorY + 0.4, L.dashZ);
+      } else if (L.cams?.cabin) {
+        const c = L.cams.cabin, back = Math.min(...L.seats.map((s) => s.z)) - 0.4;
+        wantPos = this.local(target, c.x, c.y, c.z);
+        wantLook = this.local(target, 0, c.y - 1.15, back);
       } else {
         wantPos = this.local(target, 0, L.roofY - 0.18, L.dashZ - 0.35);
         wantLook = this.local(target, 0, L.floorY + 0.35, L.rearZ + 0.3);

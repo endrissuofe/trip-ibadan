@@ -25,6 +25,8 @@ export interface CabinLayout {
   seats: Seat[];
   /** Where passengers get in and out (right side, sliding door). */
   door: { x: number; z: number };
+  /** Camera points from a real model's nodes (cabin_cam, reverse_cam, mirror_rear), when it has them. */
+  cams?: { cabin?: Vector3; reverse?: Vector3; mirror?: Vector3 };
 }
 
 /** Seat layout by body type. Coordinates are local to the vehicle (x right, y up, z forward). */

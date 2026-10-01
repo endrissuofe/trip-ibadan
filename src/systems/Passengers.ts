@@ -497,7 +497,14 @@ export class Passengers {
     }
     this.conductor.reach(reach);
     this.conductor.root.setEnabled(p.interiorView);
-    for (const x of this.aboard) x.seated?.setEnabled(p.interiorView);
+    // follow the layout (a real model can replace the seat positions after loading)
+    const L = p.layout, cs = L.conductorSeat;
+    this.conductor.root.position.set(cs.x, cs.y, cs.z);
+    for (const x of this.aboard) {
+      if (!x.seated) continue;
+      x.seated.setEnabled(p.interiorView);
+      const s = L.seats[x.seat]; if (s) x.seated.position.set(s.x, s.y, s.z);
+    }
   }
 
   private receive(t: Txn) {
