@@ -1,5 +1,13 @@
 # Changelog
 
+## Showcase pass, part 1: photographic surfaces and sky lighting (1 Oct 2026)
+
+- **Scanned materials (Poly Haven, CC0)** replace the programmer-drawn textures: real tarmac on the expressway and ramps, cracked asphalt on inner streets, red laterite on untarred roads, scruffy grass on the ground.
+- **Red-earth verge** along the outer shoulder of both carriageways (not on bridges), with an uneven edge.
+- **High quality:** PBR materials (colour, normal, AO and roughness maps) lit by a real clear-sky HDR, which also gives the vehicles reflections. **Low quality:** the same photos as plain textures.
+- Sun shadows exist but are opt-in (`?fx=shadow`) until they are stable and fast enough.
+- `tools/assets/fetch-polyhaven.mjs` re-downloads and re-compresses the assets (about 4 MB shipped).
+
 ## Change spec r1.0: MVP pass (1 Oct 2026)
 
 Implements the P0 items of the *Developer Change Specification r1.0* on the existing game, plus several P1 items. See `docs/TEST-CHECKLIST.md` for how each acceptance criterion was checked.
@@ -46,3 +54,11 @@ Implements the P0 items of the *Developer Change Specification r1.0* on the exis
 - A delivery rider riding into your parked vehicle no longer counts as you knocking them down.
 - Traffic no longer rear-ends the vehicle while it's parked at the park loading passengers (this could cost up to 40% condition before the trip started).
 - `npm test`: unit tests for fares, change-making, disputes and dialogue (Node 22.6+).
+
+### Rigged people and getting out of the drain
+- **Passengers, the conductor and people at the park are now rigged, animated characters** (`src/world/rigged.ts`): they stand and talk in the queue, walk to the door, and sit and talk in the cabin. Each one is dressed from the same look data as before (shirt, polo, kaftan and fila, blouse and wrapper, gown, gele) in their own colours. People further than 160 m from the camera are paused. If the character files fail to load the game uses the old procedural people.
+- **Getting stuck (fixed at the root):** bouncing off the median barrier, a bridge parapet or a road-works barrier used to put the vehicle 2 cm on the wrong side of the wall, so it hit the wall again on every step, lost speed each time and had its nose pulled back parallel. It sat glued to the barrier at walking pace and could not steer or reverse away. The bounce now lands on the correct side and works when reversing too. A scrape along a barrier counts as one knock per second, not one per frame.
+- **Roadside objects:** the strip beside the road (14 m) is firm ground instead of deep bush. Stalls, poles and buildings cost speed once when hit; a vehicle pressed against one swings its nose away and slips past. Long coaches use a narrower collision circle. Repeat knocks within 0.8 s don't add damage.
+- **Back-out assist:** stopped in Drive just after hitting something (a wall, a stall or another vehicle), hold the brake for half a second and the vehicle reverses away; press the accelerator to drive forward again. A hint appears when you're blocked. Reverse gear can also be selected while the vehicle is held still.
+- **Last resort:** if the vehicle makes no real progress for 2 seconds with the engine pulling (judged on net distance, so being wedged between two objects counts), it is put back in the nearest lane. This never triggers in a traffic queue.
+- Clothing colours that looked like bare skin (khaki, brown) were replaced.

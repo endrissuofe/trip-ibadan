@@ -217,3 +217,49 @@ input[type=range] { accent-color: var(--blue); }
 .row2 { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .row2 .btn { flex: 1; padding: 10px 12px; min-height: 42px; font-size: 13px; }
 .dt { font-weight: 700; }
+
+
+/* ---- clean HUD: less on screen, nothing boxed unless it has to be ---- */
+.nav-card { min-width: 0; max-width: 300px; padding: 7px 12px; gap: 10px; background: rgba(7, 16, 24, 0.66); border-color: transparent; }
+.nav-card .ico { font-size: 28px; width: 30px; }
+.nav-card .t { font-size: 14px; }
+.nav-card .d { font-size: 17px; }
+.nav-card .s { font-size: 11px; opacity: 0.85; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.status { position: absolute; left: calc(12px + var(--safe-l)); top: calc(78px + var(--safe-t)); width: auto; display: flex; gap: 6px; align-items: center; font-size: 12px; background: none; border: 0; padding: 0; }
+.status .chip, .status .mini { background: rgba(7, 16, 24, 0.6); border-radius: 999px; padding: 4px 9px; display: inline-flex; align-items: center; gap: 5px; font-weight: 700; }
+.status .mini .bar { width: 34px; height: 5px; margin: 0; }
+.nextstop { position: absolute; left: calc(14px + var(--safe-l)); top: calc(108px + var(--safe-t)); margin: 0; font-size: 12px; text-shadow: 0 1px 3px #000; }
+.progress { top: 0; left: 0; transform: none; width: 100%; padding: 0; border: 0; border-radius: 0; background: none; display: block; }
+.progress .bar { height: 3px; border-radius: 0; background: rgba(255, 255, 255, 0.14); }
+.progress .row { display: none; }
+.speed { min-width: 0; padding: 6px 12px; background: rgba(7, 16, 24, 0.66); border-color: transparent; }
+.speed .v { font-size: 30px; }
+.limit { right: calc(96px + var(--safe-r)); top: calc(14px + var(--safe-t)); width: 40px; height: 40px; border-width: 5px; font-size: 14px; }
+.clock { left: auto; transform: none; right: calc(14px + var(--safe-r)); top: calc(66px + var(--safe-t)); padding: 0; background: none; border: 0; font-size: 12px; font-weight: 700; text-shadow: 0 1px 3px #000; }
+.clock small { display: none; }
+.mm { width: 118px; height: 118px; top: calc(88px + var(--safe-t)); border-width: 2px; }
+.hudbtn { top: calc(214px + var(--safe-t)); width: 34px; height: 34px; border-radius: 10px; font-size: 14px; border-color: transparent; background: rgba(7, 16, 24, 0.6); }
+.hudbtn.b1 { right: calc(12px + var(--safe-r)); } .hudbtn.b2 { right: calc(50px + var(--safe-r)); }
+.hudbtn.b3 { right: calc(88px + var(--safe-r)); } .hudbtn.b4 { right: calc(126px + var(--safe-r)); }
+.manifest { top: calc(132px + var(--safe-t)); max-height: calc(100vh - 260px); }
+.feed { max-width: min(320px, 44vw); gap: 4px; }
+.fi { font-size: 12px; padding: 5px 9px; background: rgba(7, 16, 24, 0.7); }
+.keys-hint { animation: hintfade 1s ease 9s forwards; font-size: 11px; background: rgba(7, 16, 24, 0.5); }
+@keyframes hintfade { to { opacity: 0; visibility: hidden; } }
+.toast { top: 24%; font-size: 14px; padding: 8px 14px; }
+@media (pointer: fine) {
+  /* keyboard players only need to see the current gear */
+  .gearbox { top: calc(14px + var(--safe-t)); right: calc(146px + var(--safe-r)); padding: 0; background: none; border: 0; flex-direction: row; }
+  .gearbox .gear { display: none; width: 34px; height: 34px; }
+  .gearbox .gear.on { display: block; }
+}
+@media (pointer: coarse) {
+  .hudbtn { width: 40px; height: 40px; }
+  .hudbtn.b2 { right: calc(58px + var(--safe-r)); } .hudbtn.b3 { right: calc(104px + var(--safe-r)); } .hudbtn.b4 { right: calc(150px + var(--safe-r)); }
+}
+@media (max-height: 460px) {
+  .mm { width: 96px; height: 96px; top: calc(80px + var(--safe-t)); }
+  .hudbtn { top: calc(184px + var(--safe-t)); }
+  .status { top: calc(70px + var(--safe-t)); width: auto; }
+  .nextstop { top: calc(98px + var(--safe-t)); }
+}

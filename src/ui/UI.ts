@@ -214,24 +214,26 @@ export class UI {
     const touch = matchMedia('(pointer: coarse)').matches;
     const el = this.mount($(`<div class="hud">
       <div class="hbox nav-card"><div class="ico" data-h="ico">↑</div><div><div class="t" data-h="t"></div><div class="d" data-h="d"></div><div class="s" data-h="s"></div></div></div>
-      <div class="hbox status">
-        <div class="lab"><span>Vehicle</span><b data-h="condT"></b></div><div class="bar green"><i data-h="cond"></i></div>
-        <div class="lab" style="margin-top:5px"><span>Fuel</span><b data-h="fuelT"></b></div><div class="bar"><i data-h="fuel"></i></div>
-        <div class="lab" style="margin-top:5px"><span>Comfort</span><b data-h="comfT"></b></div><div class="bar amber"><i data-h="comf"></i></div>
-        <div class="lab" style="margin-top:6px"><span>👥 <b data-h="pax"></b></span><span>💰 <b data-h="earn"></b></span><span>📍 <b data-h="places"></b></span></div>
-        <div class="nextstop" data-h="next"></div>
+      <div class="status">
+        <span class="chip">👥 <b data-h="pax"></b></span>
+        <span class="chip">💰 <b data-h="earn"></b></span>
+        <span class="mini" title="Vehicle condition">🔧<div class="bar green"><i data-h="cond"></i></div></span>
+        <span class="mini" title="Fuel">⛽<div class="bar"><i data-h="fuel"></i></div></span>
+        <span class="mini" title="Passenger comfort"><span data-h="comfT">😊</span><div class="bar amber"><i data-h="comf"></i></div></span>
+        <b data-h="condT" hidden></b><b data-h="fuelT" hidden></b><b data-h="places" hidden></b>
       </div>
+      <div class="nextstop" data-h="next"></div>
       <div class="hbox progress"><div class="bar"><i data-h="prog"></i></div><div class="row"><span data-h="rem"></span><span data-h="pct"></span></div></div>
       <div class="hbox speed"><div class="v" data-h="kmh">0</div><div class="u">km/h</div></div>
       <div class="limit" data-h="limit">100</div>
       <div class="gearbox hbox" aria-label="Gear selector">${['P', 'R', 'N', 'D'].map((g) => `<button class="gear" data-g="${g}">${g}</button>`).join('')}</div>
       <div class="clock hbox"><span data-h="clock">06:30</span><small data-h="trip">0:00</small></div>
       <div class="mm"><canvas width="300" height="300"></canvas></div>
-      <button class="hudbtn" style="right:calc(${touch ? 176 : 190}px + var(--safe-r))" data-a="pause" aria-label="Pause">❚❚</button>
-      <button class="hudbtn" style="right:calc(${touch ? 226 : 240}px + var(--safe-r))" data-a="cam" aria-label="Camera">🎥</button>
-      <button class="hudbtn" style="right:calc(${touch ? 276 : 290}px + var(--safe-r))" data-a="look" aria-label="Look back">👀</button>
-      <div class="manifest hbox ${touch ? 'hidden' : ''}" data-h="manifest"></div>
-      <button class="hudbtn" style="right:calc(${touch ? 326 : 340}px + var(--safe-r))" data-a="manifest" aria-label="Passenger list">📋</button>
+      <button class="hudbtn b1" data-a="pause" aria-label="Pause">❚❚</button>
+      <button class="hudbtn b2" data-a="cam" aria-label="Camera">🎥</button>
+      <button class="hudbtn b3" data-a="look" aria-label="Look back">👀</button>
+      <div class="manifest hbox hidden" data-h="manifest"></div>
+      <button class="hudbtn b4" data-a="manifest" aria-label="Passenger list">📋</button>
       <div class="txn hbox" data-h="txn"></div>
       <div class="dispute hbox" data-h="dispute"></div>
       <div class="toast" data-h="toast"></div>
@@ -240,7 +242,7 @@ export class UI {
       <div class="loadpanel hbox" data-h="load"><div><b data-h="loadT"></b><div class="muted" style="font-size:12px">Passengers are boarding. Accelerate or tap Depart when ready.</div></div><button class="btn primary" data-a="depart">Depart</button></div>
       ${touch ? `<div class="ctl left"><button class="circle" data-k="left" aria-label="Steer left">◀</button><button class="circle" data-k="right" aria-label="Steer right">▶</button></div>
       <div class="ctl right"><button class="circle small" data-k="horn">HORN</button><button class="pedal brake" data-k="brake">BRAKE</button><button class="pedal accel" data-k="accel">ACCEL</button></div>`
-        : `<div class="keys-hint">W/↑ accelerate · S/↓ brake · A D/← → steer · E/Q gear up/down (P R N D) · R reverse · Z/X indicators · H hazards · B look back · C camera · M passengers · F fare · Space horn · Esc pause</div>`}
+        : `<div class="keys-hint">W S drive · A D steer · E/Q gears · R reverse · C camera · M passengers · Esc pause (all keys)</div>`}
       <div class="rotate ${touch ? 'need' : ''}">↻ Turn your phone sideways to drive</div>
     </div>`));
     this.hudEls = {};
@@ -359,7 +361,7 @@ export class UI {
     const f = this.hudEls.feed; if (!f) return;
     const n = $(`<div class="fi ${tone}"></div>`); n.textContent = msg;
     f.prepend(n);
-    while (f.children.length > 4) f.lastElementChild!.remove();
+    while (f.children.length > 2) f.lastElementChild!.remove();
     setTimeout(() => n.classList.add('out'), 4200); setTimeout(() => n.remove(), 5000);
   }
 

@@ -25,6 +25,7 @@ export const GEARS: Gear[] = ['P', 'R', 'N', 'D'];
 export const SHIFT_MAX_SPEED = 0.8;
 /** Reverse speed cap (m/s) ≈ 16 km/h. */
 export const REVERSE_MAX_SPEED = 4.5;
+const VERGE_W = 14; // m beside the carriageway that counts as firm verge
 export interface Impact { kmh: number; kind: 'barrier' | 'vehicle' | 'obstacle' | 'offroad' | 'building' | 'rider' }
 export type Surface = 'expressway' | 'street' | 'dirt' | 'bush';
 
@@ -110,7 +111,9 @@ export class PlayerVehicle {
    */
   requestGear(g: Gear): { ok: boolean; reason?: string } {
     if (g === this.gear) return { ok: true };
-    if (g !== 'N' && Math.abs(this.v) > SHIFT_MAX_SPEED) return { ok: false, reason: 'Stop the vehicle before changing gear' };
+    // judged on real ground speed too: a vehicle held against a wall isn't moving, whatever the engine is doing
+    if (g !== 'N' && Math.abs(this.v) > SHIFT_MAX_SPEED && this.stillT < 1) return { ok: false, reason: 'Stop the vehicle before changing gear' };
+    if (Math.abs(this.v) > SHIFT_MAX_SPEED) this.v = 0;
     this.gear = g;
     return { ok: true };
   }
@@ -120,7 +123,18 @@ export class PlayerVehicle {
     if (i < 0 || i >= GEARS.length) return { ok: false };
     return this.requestGear(GEARS[i]);
   }
-  get reversing() { return this.gear === 'R'; }
+  get reversing() { return this.gear === 'R' || this.autoRev; }
+  private bumpedT = 0; // seconds since the last knock with another vehicle (counts down from 4)
+  private wallCd = 0;
+  private autoRev = false; private brakeHold = 0;
+  private tryT = 0;   // seconds the driver has been pulling continuously
+  private stillT = 0; // seconds since the vehicle last got 1.2 m away from its anchor point
+  private anchorX = 0; private anchorZ = 0;
+  /** Seconds since the vehicle was last against something solid (counts down from 6). */
+  blockedT = 0;
+  /** Set when the vehicle was lifted back onto the road after being wedged; the game clears it. */
+  rescued = false;
+  private touching = false; // in contact with a building, stall or pole on the previous step
 
   /**
    * @param dt real seconds
@@ -154,10 +168,20 @@ export class PlayerVehicle {
     // BRAKE pedal drive the car backwards, so there was no way to brake while reversing.)
     const vmax = def.maxSpeed / 3.6;
     const prevV = this.v;
+    // Back-out assist: stopped in Drive just after hitting something, holding the
+    // BRAKE for half a second backs the vehicle away without touching the gear selector. The
+    // accelerator then stops it and drives forward again as normal.
+    if (this.autoRev && (this.gear !== 'D' || (ctl.throttle > 0.1 && this.v > -0.3))) this.autoRev = false;
+    this.bumpedT = Math.max(0, this.bumpedT - dt);
+    const mayBackOut = this.gear === 'D' && (this.blockedT > 0 || this.bumpedT > 0) && ctl.brake > 0.6 && ctl.throttle < 0.1 && Math.abs(this.v) < 0.3;
+    this.brakeHold = this.autoRev || mayBackOut ? this.brakeHold + dt : 0;
+    if (!this.autoRev && mayBackOut && this.brakeHold > 0.5) this.autoRev = true;
+    const gear: Gear = this.autoRev ? 'R' : this.gear;
+    const thr = this.autoRev ? ctl.brake : ctl.throttle, brk = this.autoRev ? ctl.throttle : ctl.brake;
     let drive = 0; // engine acceleration, signed
-    if (engineOn && ctl.throttle > 0) {
-      if (this.gear === 'D') drive = def.acceleration * ctl.throttle * Math.max(0, 1 - Math.pow(Math.max(0, this.v) / vmax, 2.2));
-      else if (this.gear === 'R') drive = -def.acceleration * 0.6 * ctl.throttle * Math.max(0, 1 - Math.max(0, -this.v) / REVERSE_MAX_SPEED);
+    if (engineOn && thr > 0) {
+      if (gear === 'D') drive = def.acceleration * thr * Math.max(0, 1 - Math.pow(Math.max(0, this.v) / vmax, 2.2));
+      else if (gear === 'R') drive = -def.acceleration * 0.6 * thr * Math.max(0, 1 - Math.max(0, -this.v) / REVERSE_MAX_SPEED);
     }
     // grade from real elevation acts in every gear (a car in N can roll back down a slope)
     let grade = 0;
@@ -170,20 +194,28 @@ export class PlayerVehicle {
     const heavy = def.type === 'minivan' ? 1 : 1.35;
     const av0 = Math.abs(v);
     const offroadK = this.surface === 'dirt' || this.surface === 'bush' ? 0.75 : 1;
-    let resist = 0.00045 * heavy * v * v + 0.15 + ctl.brake * def.braking * offroadK;
-    if (this.surface === 'dirt') { resist += 0.5 + av0 * 0.035; this.roughness = Math.min(1, av0 / 14); }
-    else if (this.surface === 'bush') { resist += 2.0 + av0 * 0.07; this.roughness = Math.min(1, av0 / 7); }
+    let resist = 0.00045 * heavy * v * v + 0.15 + brk * def.braking * offroadK;
+    // Rough ground slows the vehicle mostly through speed-dependent drag. The fixed part must stay
+    // well below what reverse gear can produce (0.6 × acceleration), or the vehicle gets stuck there.
+    if (this.surface === 'dirt') { resist += 0.3 + av0 * 0.05; this.roughness = Math.min(1, av0 / 14); }
+    else if (this.surface === 'bush') {
+      // The strip beside the road (drain, kerb, verge) is firm ground: a vehicle that drops a wheel in
+      // the drain must be able to pull straight back out. Open bush further away drags much more.
+      const verge = Math.abs(this.d) < hw + VERGE_W;
+      resist += verge ? 0.25 + av0 * 0.06 : 0.45 + av0 * 0.25;
+      this.roughness = Math.min(1, av0 / (verge ? 12 : 7));
+    }
     else if (this.surface === 'street') this.roughness = Math.min(0.25, av0 / 60);
     else this.roughness = 0;
     if (this.gear === 'P') resist += 25; // parking pawl
     v = towardsZero(v, resist * dt);
     // engine can't carry the car the "wrong" way through zero in D or R
-    if (this.gear === 'D' && prevV >= 0 && v < 0 && grade >= 0) v = 0;
-    if (this.gear === 'R' && prevV <= 0 && v > 0 && grade <= 0) v = 0;
-    if (Math.abs(v) < 0.12 && ctl.throttle === 0) v = 0;
+    if (gear === 'D' && prevV >= 0 && v < 0 && grade >= 0) v = 0;
+    if (gear === 'R' && prevV <= 0 && v > 0 && grade <= 0) v = 0;
+    if (Math.abs(v) < 0.12 && thr === 0) v = 0;
     this.v = Math.min(vmax, Math.max(-REVERSE_MAX_SPEED, v));
     this.longAcc = (this.v - prevV) / Math.max(dt, 1e-3);
-    this.braking = ctl.brake > 0.05;
+    this.braking = brk > 0.05;
     const av = Math.abs(this.v);
 
     // --- integrate. Signed v in the bicycle model gives correct steering when reversing.
@@ -212,7 +244,11 @@ export class PlayerVehicle {
       for (const o of w.obstacles) {
         if (Math.abs(this.s - o.s) < o.len / 2 + this.halfLen && Math.abs(this.d - o.d) < o.width / 2 + this.halfWid) {
           const kmh = av * 3.6;
-          this.x = prevX; this.z = prevZ; this.v *= -0.15; this.derive();
+          this.x = prevX; this.z = prevZ; this.v *= -0.15; this.blockedT = 6; this.derive();
+          // if the previous spot was already inside it (pushed there by traffic), slide out sideways
+          if (Math.abs(this.s - o.s) < o.len / 2 + this.halfLen && Math.abs(this.d - o.d) < o.width / 2 + this.halfWid) {
+            this.nudge(0, (this.d < o.d ? -1 : 1) * (o.width / 2 + this.halfWid - Math.abs(this.d - o.d) + 0.05));
+          }
           if (kmh > 3) this.impacts.push({ kmh, kind: 'obstacle' });
         }
       }
@@ -220,13 +256,53 @@ export class PlayerVehicle {
     // --- edge of the map, buildings, river
     if (Math.abs(this.d) > MAP_EDGE) this.wall(Math.sign(this.d) * MAP_EDGE, 'offroad');
     if (!onCarriageway) {
-      const hit = w.colliders.hit(this.x, this.z, Math.max(this.halfWid, this.halfLen * 0.6));
+      // long coaches use a narrower circle than their length, or they can't fit between roadside stalls
+      const hit = w.colliders.hit(this.x, this.z, Math.min(Math.max(this.halfWid, this.halfLen * 0.6), this.halfWid + 0.9));
       if (hit) {
-        const kmh = av * 3.6;
-        this.x += hit[0]; this.z += hit[1]; this.v *= 0.3; this.bump = 1; this.derive();
-        if (kmh > 4) this.impacts.push({ kmh, kind: 'building' });
-      }
+        // Only lose speed when driving INTO the object; backing or steering away from it is free.
+        const L = Math.hypot(hit[0], hit[1]) || 1;
+        const vx = Math.sin(this.heading) * this.v, vz = Math.cos(this.heading) * this.v;
+        const into = -(vx * hit[0] + vz * hit[1]) / L; // closing speed towards the object, m/s
+        this.x += hit[0] * 1.05; this.z += hit[1] * 1.05;
+        if (into > 0.3 && !this.touching && this.blockedT < 5.2) {
+          // (blockedT < 5.2: at most one knock every 0.8 s, so a vehicle rattling between two stalls
+          // isn't wrecked by a burst of repeat hits)
+          // the knock costs speed once; after that the vehicle slides round the object instead of
+          // being stopped again on every frame (which used to pin it against stalls and poles)
+          this.v *= 0.45; this.bump = 1;
+          if (into * 3.6 > 4) this.impacts.push({ kmh: into * 3.6, kind: 'building' });
+        }
+        if (into > 0.05) {
+          // Pressed against it: the nose (or tail, in reverse) swings away so the vehicle slips past
+          // instead of sitting there, and the speed can't build up while it is held back.
+          const nx = hit[0] / L, nz = hit[1] / L;
+          const g = Math.cos(this.heading) * nx - Math.sin(this.heading) * nz; // which way turns the nose away
+          const dir = Math.abs(g) > 0.04 ? Math.sign(g) : ctl.steer !== 0 ? Math.sign(ctl.steer) : 1;
+          this.heading += dir * Math.sign(this.v || 1) * 1.6 * dt;
+          const cap = 1.5 + Math.abs(this.v) * Math.sqrt(Math.max(0, 1 - Math.min(1, into / Math.max(Math.abs(this.v), 1e-3)) ** 2));
+          if (Math.abs(this.v) > cap) this.v = Math.sign(this.v) * cap;
+        }
+        this.touching = true; this.blockedT = 6;
+        this.derive();
+      } else this.touching = false;
       if (w.isWater(this.x, this.z, w.groundAt(this.s, this.d))) { this.x = prevX; this.z = prevZ; this.v = 0; this.derive(); }
+    }
+    // --- last resort: wedged beside the road with the engine pulling and nothing moving
+    const trying = engineOn && thr > 0.5 && (gear === 'D' || gear === 'R');
+    // Has the vehicle really got anywhere? Judged on net distance from an anchor point, because a vehicle
+    // wedged between two objects is shoved back and forth every step and looks "fast" step to step.
+    if (Math.hypot(this.x - this.anchorX, this.z - this.anchorZ) > 1.2) { this.anchorX = this.x; this.anchorZ = this.z; this.stillT = 0; }
+    else this.stillT += dt;
+    this.tryT = trying ? this.tryT + dt : 0;
+    this.blockedT = Math.max(0, this.blockedT - dt);
+    this.wallCd = Math.max(0, this.wallCd - dt);
+    // off the road near the kerb, or anywhere the vehicle has just been against a wall, stall or barrier
+    // (not a traffic queue: traffic never sets blockedT)
+    const held = (!onCarriageway && Math.abs(this.d) < hw + 30) || this.blockedT > 0;
+    if (held && this.tryT > 2 && this.stillT > 2) {
+      const lane = nb.toWorld(this.s, hw - 1.8);
+      this.x = lane.x; this.z = lane.z; this.heading = lane.heading; this.v = 0; this.steerSm = 0;
+      this.tryT = 0; this.stillT = 0; this.touching = false; this.rescued = true; this.derive();
     }
     if (this.s < nb.s[0] + 20 || this.s > nb.length - 20) { this.x = prevX; this.z = prevZ; this.v = 0; this.derive(); }
 
@@ -236,18 +312,27 @@ export class PlayerVehicle {
   /** Bounce off a wall that runs along the carriageway at road-space offset `limit`. */
   private wall(limit: number, kind: Impact['kind']) {
     const kmh = Math.abs(this.v * Math.sin(this.psi)) * 3.6;
-    const p = this.world.route.nb.toWorld(this.s, limit - Math.sign(limit - this.d) * 0.02);
+    // Put the vehicle back on the side it came from. (It used to land 2 cm BEYOND the wall, so it hit
+    // the wall again on every step, lost speed each time and could never steer or reverse away.)
+    const p = this.world.route.nb.toWorld(this.s, limit + Math.sign(limit - this.d) * 0.03);
     this.x = p.x; this.z = p.z;
-    this.heading = p.heading - this.psi * 0.25;
-    this.v *= 1 - Math.min(0.6, Math.abs(Math.sin(this.psi)) * 1.5 + 0.08);
-    this.bump = 1;
+    const rev = this.v < 0 ? Math.PI : 0;
+    // direction of TRAVEL relative to the road (the tail leads when reversing): keep the part along the
+    // wall, and turn the part into the wall into a small bounce away from it
+    const along = Math.cos(this.psi + rev), lat = Math.sin(this.psi + rev);
+    const lat2 = -0.25 * lat, along2 = (along < 0 ? -1 : 1) * Math.sqrt(1 - lat2 * lat2);
+    this.heading = p.heading + Math.atan2(lat2, along2) - rev;
+    this.v *= 1 - Math.min(0.6, Math.abs(lat) * 1.5 + 0.01);
+    this.bump = 1; this.blockedT = 6;
     this.derive();
-    if (kmh > 2) this.impacts.push({ kmh, kind });
+    // one knock per scrape: rubbing along a barrier is not a string of separate crashes
+    if (kmh > 3 && this.wallCd <= 0) { this.impacts.push({ kmh, kind }); this.wallCd = 1; }
   }
 
   /** Push from a traffic/rider collision. */
   collide(newV: number, dPush: number, kmh: number, kind: Impact['kind'] = 'vehicle') {
     this.v = newV; this.nudge(0, dPush); this.heading -= this.psi * 0.4; this.bump = 1;
+    if (kind === 'vehicle') this.bumpedT = 4;
     if (kmh > 2) this.impacts.push({ kmh, kind });
   }
 
@@ -404,7 +489,7 @@ export class PlayerVehicle {
     const on = this.braking;
     this.brakeMat.emissiveColor.set(on ? 1 : 0.35, on ? 0.08 : 0.02, on ? 0.08 : 0.03);
     const outside = !this.interiorOn;
-    for (const r of this.reverseLamps) r.isVisible = this.gear === 'R' && outside;
+    for (const r of this.reverseLamps) r.isVisible = this.reversing && outside;
     const ind = this.indicator;
     for (const l of this.indicatorLamps) {
       const want = ind === 'hazard' || (ind === 'left' && l.side === -1) || (ind === 'right' && l.side === 1);

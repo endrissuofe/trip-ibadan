@@ -16,8 +16,11 @@ import { StreetNet, Colliders, STREET_HALF_W } from '../map/Streets';
 import { buildLandmarks } from './Landmarks';
 import { buildPerson, SHIRTS } from './props';
 import { meshFrom, gridIndices, PartBuilder } from './geo';
-import { asphaltTexture, groundTexture, signTexture, dirtTexture } from './textures';
+import { signTexture } from './textures';
 import { buildVehicle, vehicleMaterial } from './models';
+import { surface, setupRealLighting } from './Surfaces';
+import type { Camera } from '@babylonjs/core/Cameras/camera';
+import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { buildRoadside, RoadsideStats } from './Roadside';
 
 export interface Obstacle { s: number; d: number; len: number; width: number; kind: string }
@@ -53,6 +56,8 @@ export class World {
   private rnd = mulberry(20260930);
   /** What the roadside kit placed (null if the kit isn't installed). */
   roadside: RoadsideStats | null = null;
+
+  get high() { return this.quality === 'high'; }
 
   constructor(readonly scene: Scene, readonly route: Route, readonly quality: Quality) {
     const nb = route.nb, sb = route.sb;
@@ -118,6 +123,23 @@ export class World {
 
   update(dt: number) { for (const u of this.updaters) u(dt); }
 
+  /**
+   * High quality only: real-sky lighting and sun shadows. Needs the game camera,
+   * because the shadow cascades are fitted to what the camera sees.
+   */
+  async enableRealLighting(camera: Camera) {
+    if (!this.high) return;
+    const scene = this.scene;
+    const flat = /^(ground|road-|mark-|street|ramp$|verge|bay|water|sky|playerBlob|tblob|b$|sign|board)/;
+    // only things near the camera cast shadows; the shadow map never draws the whole corridor
+    const near = (m: AbstractMesh) => {
+      const bs = m.getBoundingInfo().boundingSphere;
+      return Vector3.Distance(bs.centerWorld, camera.globalPosition) - bs.radiusWorld < 70;
+    };
+    try { await setupRealLighting(scene, this.sun, camera, (m) => !flat.test(m.name) && m.isEnabled() && m.isVisible && near(m)); }
+    catch (e) { console.warn('[lighting] real sky/shadows unavailable, using basic lighting', e); }
+  }
+
   // ---------------------------------------------------------------- build
   async build(report: (p: number, label: string) => void) {
     const scene = this.scene;
@@ -130,7 +152,7 @@ export class World {
     scene.ambientColor = new Color3(0.3, 0.3, 0.3);
 
     const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
-    hemi.intensity = 0.75; hemi.diffuse = new Color3(1, 0.98, 0.94); hemi.groundColor = new Color3(0.36, 0.33, 0.27);
+    hemi.intensity = this.high ? 0.55 : 0.75; hemi.diffuse = new Color3(1, 0.98, 0.94); hemi.groundColor = new Color3(0.36, 0.33, 0.27);
     this.sun = new DirectionalLight('sun', new Vector3(-0.35, -1, 0.45).normalize(), scene);
     this.sun.intensity = 1.05; this.sun.diffuse = new Color3(1, 0.96, 0.88);
 
@@ -180,9 +202,8 @@ export class World {
   // ---------------------------------------------------------------- terrain
   private buildGround() {
     const { nb } = this.route;
-    const tex = groundTexture(this.scene);
-    const mat = new StandardMaterial('groundMat', this.scene);
-    mat.diffuseTexture = tex; mat.specularColor = new Color3(0.02, 0.02, 0.02); mat.backFaceCulling = false;
+    // scanned grass with dry leaves and bare soil; UVs are world metres / 22, tiled every ~6 m
+    const mat = surface(this.scene, this.high, 'leafy_grass', 'ground', { uScale: 3.6, vScale: 3.6 });
     const D = [-320, -240, -175, -125, -90, -66, -50, -39, -31, -25, -20, -16, -12.5, -9.5, -7, -4, 0, 4, 7, 9.5, 12.5, 16, 20, 25, 31, 39, 50, 66, 90, 125, 175, 240, 320];
     const every = 4, rowsPerChunk = 50;
     const rowIdx: number[] = []; for (let i = 0; i < nb.n; i += every) rowIdx.push(i);
@@ -237,9 +258,9 @@ export class World {
 
   // ---------------------------------------------------------------- road surface, markings, barriers
   private buildCarriageway(line: Line, tag: string) {
-    const asphalt = asphaltTexture(this.scene);
-    const roadMat = new StandardMaterial(`road-${tag}`, this.scene);
-    roadMat.diffuseTexture = asphalt; roadMat.specularColor = new Color3(0.08, 0.08, 0.08); roadMat.backFaceCulling = false;
+    // scanned tarmac, one tile ≈ 11 m (UVs are d / 3.4 across and s / 7 along)
+    const roadMat = surface(this.scene, this.high, 'aerial_asphalt_01', 'road', { uScale: 0.31, vScale: 0.64 });
+    const vergeMat = surface(this.scene, this.high, 'red_laterite_soil_stones', 'verge', { uScale: 0.85, vScale: 1.75, tint: new Color3(1.55, 1.25, 1.05) });
     const markMat = new StandardMaterial(`mark-${tag}`, this.scene);
     markMat.diffuseColor = new Color3(0.95, 0.95, 0.92); markMat.emissiveColor = new Color3(0.25, 0.25, 0.25);
     markMat.specularColor = Color3.Black(); markMat.backFaceCulling = false; markMat.zOffset = -2;
@@ -262,6 +283,25 @@ export class World {
       }
       const road = meshFrom(`road-${tag}`, this.scene, pos, gridIndices(c1 - c0 + 1, cols), { uvs: uv, colors: col, upright: true });
       road.material = roadMat; road.receiveShadows = true;
+
+      // --- red-earth verge beyond the outer shoulder (not on bridges)
+      {
+        let vp: number[] = [], vuv: number[] = [], vcol: number[] = [], rows = 0;
+        const flush = () => {
+          if (rows >= 2) { const v = meshFrom('verge', this.scene, vp, gridIndices(rows, 3), { uvs: vuv, colors: vcol, upright: true }); v.material = vergeMat; v.receiveShadows = true; }
+          vp = []; vuv = []; vcol = []; rows = 0;
+        };
+        for (let i = c0; i <= c1; i++) {
+          if (line.bridge[i]) { flush(); continue; }
+          const s = line.s[i], smp = line.sample(s), hw = line.halfWidth(s);
+          const wob = 1.2 * vnoise(smp.x / 17, smp.z / 17);
+          [[hw + 2.75, -0.03, 1], [hw + 4.4 + wob, -0.14, 0.95], [hw + 6.4 + wob * 1.6, -0.3, 0.82]].forEach(([d, dy, c]) => {
+            vp.push(smp.x + smp.nx * d, smp.y + dy, smp.z + smp.nz * d); vuv.push(d / 3.4, s / 7); vcol.push(c, c, c, 1);
+          });
+          rows++;
+        }
+        flush();
+      }
 
       // --- markings
       const mp: number[] = [], mi: number[] = [];
@@ -352,8 +392,7 @@ export class World {
   // ---------------------------------------------------------------- interchange ramps
   private buildRamps() {
     const nb = this.route.nb;
-    const mat = new StandardMaterial('rampMat', this.scene);
-    mat.diffuseTexture = asphaltTexture(this.scene); mat.specularColor = new Color3(0.06, 0.06, 0.06); mat.backFaceCulling = false;
+    const mat = surface(this.scene, this.high, 'aerial_asphalt_01', 'road', { uScale: 0.31, vScale: 0.64 });
     for (const ramp of this.route.file.ramps) {
       // resample to 5 m
       const pts: [number, number][] = [];
@@ -491,10 +530,9 @@ export class World {
   private buildStreets() {
     const nb = this.route.nb;
     this.streets.setHeights((x, z) => { const p = nb.project(x, z); return this.groundAt(p.s, p.d) + 0.32; });
-    const paved = new StandardMaterial('streetPaved', this.scene);
-    paved.diffuseTexture = asphaltTexture(this.scene); paved.specularColor = new Color3(0.05, 0.05, 0.05); paved.backFaceCulling = false;
-    const dirt = new StandardMaterial('streetDirt', this.scene);
-    dirt.diffuseTexture = dirtTexture(this.scene); dirt.specularColor = Color3.Black(); dirt.backFaceCulling = false;
+    // inner streets: cracked scanned asphalt; untarred roads: scanned red laterite (tiles ≈ 4 m)
+    const paved = surface(this.scene, this.high, 'asphalt_02', 'street', { uScale: 0.85, vScale: 1.75 });
+    const dirt = surface(this.scene, this.high, 'red_laterite_soil_stones', 'dirt', { uScale: 1.3, vScale: 1.5, tint: new Color3(1.6, 1.28, 1.08) });
     const bins = new Map<string, { pos: number[]; uv: number[]; col: number[]; idx: number[] }>();
     const net = this.streets;
     net.data.forEach((st, si) => {
@@ -519,7 +557,7 @@ export class World {
     });
     for (const [key, b] of bins) {
       const m = meshFrom('street', this.scene, b.pos, b.idx, { uvs: b.uv, colors: b.col, upright: true });
-      m.material = key[0] === 'd' ? dirt : paved;
+      m.material = key[0] === 'd' ? dirt : paved; m.receiveShadows = true;
     }
   }
 

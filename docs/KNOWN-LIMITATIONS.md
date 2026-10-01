@@ -23,10 +23,10 @@ What is simulated rather than physically or geographically accurate.
 - Streets are drivable only on the right-hand side of the northbound carriageway (the median barrier blocks the other side). There's no street traffic except riders.
 
 ## Change-spec pass (Oct 2026)
-- **Vehicles and people are still procedural stand-ins**, not photoreal. People are much more human (faces, hair, clothing, variety, walking and sitting) but are not rigged models. Real GLB vehicles load through `public/models/manifest.json`; characters need the `HumanFactory` swap (see ASSET-CONTRACT.md).
+- **People are stylised (cartoon-like) rigged characters**, not photoreal. Clothing is a fitted copy of the body surface, so it doesn't drape: a blouse hem can stick out at the hips when seated, and a wrapper stretches between the knees. Agbada uses the kaftan, scarf and cap use the gele and fila shapes, and afro hair uses the bun. Bags and walking sticks aren't shown. Bystanders at other stops and checkpoint officers are still the old simple figures.
 - **The route is still Ojota → Mowe (24 km).** Sagamu, Ogere and Ibadan (Iwo Road) need the map pipeline re-run with wider bounding boxes (see TECHNICAL.md, "Adding the next leg").
 - **Pace:** at Normal (3×) cruising looks fast because the vehicle really covers the road 3× faster. Clock scale and travel scale are separate numbers in `src/systems/GameClock.ts` if they need different values.
-- **Seated passengers are static poses** (no head turns or hand-raising yet). The conductor's hand-over is an arm swing plus a flying note, not a hand-to-hand animation.
+- Seated passengers play idle and talking animations. The conductor's hand-over is a talking animation plus a flying note, not a hand-to-hand animation; he is hidden in the cabin view because he sits right against the camera.
 - **Rear-view display** is a small camera view, not a mirrored image. It's off on Low graphics.
 - **Passenger mood** reacts to ride comfort, long stops, missed stops and disputes. Music, weather and traffic don't affect it yet.
 - **Dialogue is text only** (no voices). Yoruba lines should be checked by a native speaker.
@@ -37,6 +37,12 @@ What is simulated rather than physically or geographically accurate.
 - The open drain is drawn at ground level (the terrain isn't cut), so it reads as a dark channel between two concrete lips rather than a real trench.
 - Under flyovers and around interchange ramps the roadside is left empty, because the ramps aren't solid; real traders often set up there.
 - Shops have no people yet, and the petrol station forecourt is solid (you can't drive in to buy fuel).
+
+## Rendering (showcase pass)
+- **Scanned surfaces and sky lighting** are on the road, streets, verge and ground. Houses, trees, people and traffic still use flat colours, so they don't yet match the road's realism.
+- **Sun shadows are off by default.** A first version with cascaded shadows crashed the graphics context on the test machine. A lighter single shadow map can be switched on with `?fx=shadow` in the address; it ran at about 20–24 fps in the preview and made the driver and cabin views too dark. `?fx=noenv` switches the sky lighting off.
+- On Low quality the same photos are used without normal maps, sky lighting or shadows.
+- The visible sky is still the procedural one; the scanned sky is used for lighting and reflections only.
 
 ## Driving / systems
 - **Vehicle physics** is an arcade-leaning free-driving model (kinematic steering, no tyre slip or suspension). Gears are P/R/N/D (automatic); there is no manual gearbox. The map ends 318 m either side of the expressway, because terrain is only baked that far.

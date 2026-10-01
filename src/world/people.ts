@@ -12,6 +12,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { Matrix } from '@babylonjs/core/Maths/math.vector';
 import { PartBuilder } from './geo';
 import { vehicleMaterial } from './models';
+import { Rigs, Rig } from './rigged';
 
 export type Sex = 'm' | 'f';
 export type Age = 'young' | 'adult' | 'elder';
@@ -35,9 +36,9 @@ export interface Look {
 
 const SKINS = ['#3a2119', '#472a1f', '#553224', '#62392a', '#704331', '#7f4e38', '#8c5a41'];
 const BRIGHT = ['#d4561c', '#1f6fb2', '#e0b420', '#2e8b57', '#8e2c6f', '#c0392b', '#10706a', '#f28c28', '#5b3a8c', '#b5174f', '#0f5e9c', '#6a8f1f'];
-const PLAIN = ['#f3f1ea', '#2c3e50', '#6d4c41', '#9bb7d4', '#e8e2d0', '#3c4a3e', '#7a1f2b', '#d9d2c3', '#40505e'];
-const TROUSERS = ['#2b2e33', '#3f454c', '#6b5a45', '#2f4a6d', '#1f2a36', '#8a7e6a'];
-const SHOES = ['#1a1412', '#3b2a1e', '#5b4636', '#101010', '#7a6a58'];
+const PLAIN = ['#f3f1ea', '#2c3e50', '#27606d', '#9bb7d4', '#e8e2d0', '#3c4a3e', '#7a1f2b', '#d9d2c3', '#40505e'];
+const TROUSERS = ['#2b2e33', '#3f454c', '#4a5568', '#2f4a6d', '#1f2a36', '#cfc8b4'];
+const SHOES = ['#1a1412', '#3b2a1e', '#5b4636', '#101010', '#e8e4da'];
 
 const pick = <T,>(r: () => number, a: readonly T[]) => a[Math.floor(r() * a.length)];
 
@@ -199,6 +200,8 @@ function finish(b: PartBuilder, scene: Scene, s: number): Mesh {
 
 /** Static standing person, one mesh (for crowds waiting at stops). Origin at the feet, facing +z. */
 export function buildStanding(scene: Scene, L: Look): Mesh {
+  const rig = Rigs.spawn(scene, L);
+  if (rig) { rig.play(Math.random() < 0.3 ? 'Idle_Talking_Loop' : 'Idle_Loop'); return rig.root; }
   const b = new PartBuilder(scene, 'person');
   addBody(b, L, false);
   const sx = (L.sex === 'f' ? 0.2 : 0.225) * L.build;
@@ -211,6 +214,8 @@ export function buildStanding(scene: Scene, L: Look): Mesh {
 
 /** Static seated passenger, one mesh. Origin on the seat surface under the hips, facing +z. */
 export function buildSeated(scene: Scene, L: Look): Mesh {
+  const rig = Rigs.spawn(scene, L, true);
+  if (rig) { rig.play(Math.random() < 0.25 ? 'Sitting_Talking_Loop' : 'Sitting_Idle_Loop'); return rig.root; }
   const b = new PartBuilder(scene, 'seated');
   addBody(b, L, true);
   addSeatedLimbs(b, L);
@@ -222,8 +227,11 @@ export class Walker {
   readonly root: Mesh;
   private limbs: { m: Mesh; phase: number; amp: number }[] = [];
   private t = Math.random() * 6;
+  private rig: Rig | null;
 
   constructor(scene: Scene, readonly look: Look) {
+    this.rig = Rigs.spawn(scene, look);
+    if (this.rig) { this.root = this.rig.root; this.rig.play('Idle_Loop'); return; }
     const s = scaleOf(look);
     const body = new PartBuilder(scene, 'walker');
     addBody(body, look, false);
@@ -242,6 +250,11 @@ export class Walker {
 
   /** Swing limbs; `speed` in m/s (0 = standing still). */
   animate(dt: number, speed: number) {
+    if (this.rig) {
+      if (speed > 0.1) this.rig.play('Walk_Loop', true, Math.min(1.5, Math.max(0.75, speed / 1.25)) * (this.look.age === 'elder' ? 0.8 : 1));
+      else this.rig.play('Idle_Loop');
+      return;
+    }
     const k = Math.min(1, speed / 1.3);
     this.t += dt * (3.2 + speed * 3.4) * (this.look.age === 'elder' ? 0.8 : 1);
     for (const l of this.limbs) l.m.rotation.x = Math.sin(this.t + l.phase) * l.amp * k;
@@ -256,8 +269,11 @@ export class Walker {
  */
 export class ConductorFigure {
   readonly root: Mesh;
-  private arm: Mesh;
+  private arm!: Mesh;
+  private rig: Rig | null;
   constructor(scene: Scene, readonly look: Look) {
+    this.rig = Rigs.spawn(scene, look, true);
+    if (this.rig) { this.root = this.rig.root; this.rig.play('Sitting_Idle_Loop'); return; }
     const s = scaleOf(look) * 0.97;
     const b = new PartBuilder(scene, 'conductor');
     addBody(b, look, true);
@@ -275,6 +291,11 @@ export class ConductorFigure {
   }
   /** 0 = arm resting, 1 = reaching back towards the passenger. `turn` swings the arm sideways. */
   reach(k: number, turn = 0.6) {
+    if (this.rig) {
+      this.rig.play(k > 0.12 ? 'Sitting_Talking_Loop' : 'Sitting_Idle_Loop');
+      this.root.rotation.y = Math.PI * 0.3 * k;
+      return;
+    }
     this.arm.rotation.x = -1.35 * k;       // raise forward/up…
     this.arm.rotation.z = turn * k;        // …and across
     this.root.rotation.y = Math.PI * 0.42 * k; // twist round to face the cabin

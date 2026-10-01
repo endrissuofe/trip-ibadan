@@ -8,7 +8,7 @@
       "file": "vehicles/sienna.glb"
     }
   },
-  "characters": [],
+  "characters": [{ "file": "characters/man.glb" }, { "file": "characters/woman.glb" }],
   "scenery": {
     "roadside": {
       "file": "scenery/roadside.glb"

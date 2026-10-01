@@ -6,6 +6,7 @@ import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imagePro
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { Route, LANE_W } from './map/Route';
 import { World } from './world/World';
+import { Rigs } from './world/rigged';
 import { TRIPS, TripDef, ROUTE_ID } from './data/trips';
 import { VehicleDef, vehicleById, VEHICLES } from './data/vehicles';
 import { PlayerVehicle, Controls, Gear } from './systems/Driving';
@@ -87,10 +88,12 @@ export class Game implements GameApi {
       this.ui.loading(0.02, 'Loading the real Ojota → Mowe road');
       this.route = await Route.load(ROUTE_ID);
       this.route.setTrip(this.trip.fromId, this.trip.toId);
+      await Rigs.load(this.scene);
       this.world = new World(this.scene, this.route, this.save.settings.quality);
       await this.world.build((p, l) => this.ui.loading(0.05 + p * 0.9, l));
       this.rig = new CameraRig(this.scene, this.world);
       this.scene.activeCamera = this.rig.cam;
+      await this.world.enableRealLighting(this.rig.cam);
       this.rig.mirrorEnabled = this.save.settings.quality === 'high';
       const high = this.save.settings.quality === 'high';
       this.traffic = new Traffic(this.scene, this.world, high ? 1 : 0.7);
@@ -308,6 +311,8 @@ export class Game implements GameApi {
     const limit = this.world.speedLimitAt(p.s, this.vehicle.speedLimit);
     // passengers (read impacts before damage clears them)
     for (const m of pax.update(dt, p, ctl, limit)) { this.ui.feed(m.text, m.tone); if (m.money) this.audio.click(); if (import.meta.env.DEV) this.debugFeed.push(m.text); }
+    if (p.rescued) { p.rescued = false; this.ui.feed('Area boys pushed you back onto the road', 'info'); }
+    if (p.blockedT > 5 && Math.abs(p.v) < 1 && p.gear === 'D' && this.hintCd <= 0) { this.hintCd = 8; this.ui.toast('Blocked: hold the brake to back out', 2400); }
     for (const imp of p.impacts) {
       const loss = this.damage.apply(imp);
       if (imp.kind !== 'rider') this.audio.crash(imp.kmh);

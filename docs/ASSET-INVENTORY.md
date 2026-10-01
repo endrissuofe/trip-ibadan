@@ -1,6 +1,6 @@
 # Asset inventory
 
-Every asset is procedural or open data. There are **no third-party model, texture or audio files** yet, which keeps the download small and avoids licensing risk. Real models go in `public/models/` (see ASSET-CONTRACT.md); record each one's source and licence here.
+Models are built for this project; surface textures and the sky are CC0 scans from Poly Haven (listed below). There are no third-party model or audio files. Real models go in `public/models/` (see ASSET-CONTRACT.md); record each one's source and licence here.
 
 ## Vehicles (`src/world/models.ts`)
 | Asset | Use | Notes |
@@ -32,8 +32,22 @@ Roadside kit from `scenery/roadside.glb`, placed by `src/world/Roadside.ts` (see
 ## Road assets
 Asphalt surfaces (both carriageways, ramps), lane and edge markings, New Jersey median barrier, bridge parapets, deck slabs, piers, footbridges with stair towers, water plane, green direction signs, overhead Mowe gantry, road-works and checkpoint signs, blue destination bay.
 
+## Scanned surfaces and sky (Poly Haven, CC0)
+Fetched and shrunk for phones by `tools/assets/fetch-polyhaven.mjs` (raw 1k files are cached in `tools/assets/raw/`, not committed). About 4 MB in total. Used through `src/world/Surfaces.ts`.
+
+| File (in `public/`) | Used for | Source | Licence |
+|---|---|---|---|
+| `textures/aerial_asphalt_01_*` | Expressway and ramps | polyhaven.com/a/aerial_asphalt_01 | CC0 |
+| `textures/asphalt_02_*` | Tarred inner streets | polyhaven.com/a/asphalt_02 | CC0 |
+| `textures/red_laterite_soil_stones_*` | Untarred roads, road verge | polyhaven.com/a/red_laterite_soil_stones | CC0 |
+| `textures/leafy_grass_*` | Ground | polyhaven.com/a/leafy_grass | CC0 |
+| `textures/brown_mud_dry_*`, `concrete_block_wall_*`, `painted_plaster_wall_*`, `rusty_corrugated_iron_*`, `concrete_pavement_*` | Downloaded for the roadside kit and buildings; not wired in yet | polyhaven.com | CC0 |
+| `env/kloofendal_43d_clear_puresky_1k.hdr` | Sky lighting and reflections (High quality) | polyhaven.com/a/kloofendal_43d_clear_puresky | CC0 |
+
+Each texture set is colour (`_diff`), normal (`_nor`) and AO/roughness/metal (`_arm`).
+
 ## Textures (`src/world/textures.ts`)
-Procedural canvas textures: asphalt, ground, blob shadow, sign faces (rendered text).
+Procedural canvas textures: blob shadow and sign faces (rendered text). The old procedural asphalt, ground and dirt textures are no longer used.
 
 ## UI assets
 Inter and Bebas Neue (Google Fonts, OFL). SVG vehicle silhouettes (`src/ui/icons.ts`), CSS-only HUD.
@@ -43,3 +57,10 @@ Synthesised with WebAudio: engine (gear-simulated revs), tyre/road noise, off-ro
 
 ## Map data
 `data/osm/road.json`, `data/osm/places.json` (OSM, ODbL); DEM tiles cached in `data/dem/` (AWS Terrain Tiles); baked `public/data/berger-mowe.json`.
+
+## Characters (test, not yet used in the game)
+| File | What | Source | Licence |
+|---|---|---|---|
+| `public/models/characters/man.glb`, `woman.glb` | Rigged man and woman, each with several garments (shirts, kaftan and fila; blouse, gown, wrapper and gele), hair pieces, and idle, talking, walk, sitting and interact animations. About 1.4 MB and 1.8 MB. The game switches garments on per person and colours them | Built by `tools/blender/build_passenger.py` from Quaternius *Universal Base Characters* and *Universal Animation Library* (free Standard versions), fetched with `tools/assets/fetch-quaternius.mjs` | CC0 |
+
+The raw packs (138 MB) are cached in `tools/assets/raw/quaternius/` and are not committed. The free versions contain two base bodies (male, female), eight hair pieces and 43 animations.
