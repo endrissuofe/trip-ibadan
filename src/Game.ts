@@ -59,6 +59,7 @@ export class Game implements GameApi {
   private lookingBack = false;
   private disputeSeen = false;
   private lastBlink = false;
+  private readonly mobile = matchMedia('(pointer: coarse)').matches;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.save = loadSave();
@@ -67,9 +68,8 @@ export class Game implements GameApi {
     this.trip = TRIPS.find((t) => t.id === this.save.selectedTrip) ?? TRIPS[0];
     this.audio.setVolume(this.save.settings.sound);
     const high = this.save.settings.quality === 'high';
-    this.engine = new Engine(canvas, high, { preserveDrawingBuffer: false, stencil: false, powerPreference: 'high-performance' }, true);
-    const dpr = window.devicePixelRatio || 1;
-    this.engine.setHardwareScalingLevel(1 / (high ? Math.min(dpr, 1.75) : Math.min(dpr, 1) * 0.85));
+    this.engine = new Engine(canvas, high, { preserveDrawingBuffer: false, stencil: false, powerPreference: this.mobile ? 'low-power' : 'high-performance' }, true);
+    this.updateHardwareScaling();
     this.scene = new Scene(this.engine);
     this.scene.skipPointerMovePicking = true;
     const ip = this.scene.imageProcessingConfiguration;
@@ -94,7 +94,7 @@ export class Game implements GameApi {
       this.rig = new CameraRig(this.scene, this.world);
       this.scene.activeCamera = this.rig.cam;
       await this.world.enableRealLighting(this.rig.cam);
-      this.rig.mirrorEnabled = this.save.settings.quality === 'high';
+      this.rig.mirrorEnabled = this.save.settings.quality === 'high' && !this.mobile;
       const high = this.save.settings.quality === 'high';
       this.traffic = new Traffic(this.scene, this.world, high ? 1 : 0.7);
       this.riders = new Riders(this.scene, this.world, high ? 7 : 5);
@@ -104,6 +104,9 @@ export class Game implements GameApi {
       let last = performance.now();
       this.engine.runRenderLoop(() => {
         const now = performance.now();
+        // 30 fps cap. The 4 ms slack matters: on a 60 Hz screen frames arrive every 16.7 ms, and a strict
+        // 33.3 ms test rejects every other "second" frame, which drops the game to 20 fps.
+        if (this.mobile && this.save.settings.powerSaver && now - last < 1000 / 30 - 4) return;
         const dt = Math.min(0.05, (now - last) / 1000); last = now;
         this.frame(dt);
         this.scene.render();
@@ -198,7 +201,7 @@ export class Game implements GameApi {
   collectFare() { this.pax?.collect(); }
   returnChange() { this.pax?.returnChange(); }
   resolveDispute(choice: 'check' | 'payout' | 'back') { this.pax?.resolveDispute(choice); }
-  pause() { if (this.state !== 'drive') return; this.state = 'paused'; this.audio.silence(); this.ui.pause(); }
+  pause() { if (this.state !== 'drive') return; this.state = 'paused'; this.audio.silence(); this.nav.stopSpeaking(); this.ui.pause(); }
   resume() { if (this.state !== 'paused') return; this.state = 'drive'; this.ui.releaseInputs(); this.ui.hud(); }
   restart() { this.startDrive(); }
   quitToMenu() { this.traffic.spawnAround(this.player!); this.enterMenu('start'); }
@@ -212,7 +215,15 @@ export class Game implements GameApi {
   applySettings(s: Settings) {
     this.save.settings = s; writeSave(this.save);
     this.audio.setVolume(s.sound);
+    this.updateHardwareScaling();
     if (this.nav) this.nav.voice = s.voice;
+  }
+
+  private updateHardwareScaling() {
+    const dpr = window.devicePixelRatio || 1;
+    const high = this.save.settings.quality === 'high';
+    const mobileCap = this.save.settings.powerSaver ? 1 : 1.25;
+    this.engine.setHardwareScalingLevel(1 / (high ? Math.min(dpr, this.mobile ? mobileCap : 1.75) : Math.min(dpr, 1) * 0.85));
   }
 
   // ------------------------------------------------------------------ placement
@@ -259,6 +270,13 @@ export class Game implements GameApi {
     this.brake += ((brake ? 1 : 0) - this.brake) * Math.min(1, dt * 6);
     let steer = (right ? 1 : 0) - (left ? 1 : 0);
     if (T.tilt !== null && this.save.settings.controls === 'tilt' && !left && !right) steer = T.tilt;
+    if (this.mobile) {
+      // Softer steering at speed only: below about 30 km/h the full lock stays available, or the vehicle
+      // can't turn into a side street or get itself out of a tight spot.
+      const sens = this.save.settings.steeringSensitivity;
+      const slow = Math.max(0, Math.min(1, 1 - (Math.abs(this.player?.v ?? 0) - 3) / 6));
+      steer *= sens + (1 - sens) * slow;
+    }
     if (this.debugAutoSteer && this.player) { // dev/test only: keep lane
       const p = this.player, lane = this.debugAutoSteer;
       const look = 18 * this.clock.worldScale(p.v) + 10;
@@ -293,7 +311,9 @@ export class Game implements GameApi {
     const engineOn = !this.fuel.empty && !this.damage.disabled;
     // World pace: player, traffic and riders all cover the real road `f` times faster when cruising.
     const f = this.clock.worldScale(p.v);
-    const steps = Math.max(dt > 1 / 45 ? 2 : 1, Math.ceil(dt * f * 60));
+    const steps = this.mobile && this.save.settings.powerSaver
+      ? Math.max(1, Math.ceil(dt * f * 30))
+      : Math.max(dt > 1 / 45 ? 2 : 1, Math.ceil(dt * f * 60));
     for (let i = 0; i < steps; i++) {
       p.update(dt / steps, ctl, engineOn, f);
       this.traffic.update((dt / steps) * f, p);
@@ -310,8 +330,13 @@ export class Game implements GameApi {
 
     const limit = this.world.speedLimitAt(p.s, this.vehicle.speedLimit);
     // passengers (read impacts before damage clears them)
-    for (const m of pax.update(dt, p, ctl, limit)) { this.ui.feed(m.text, m.tone); if (m.money) this.audio.click(); if (import.meta.env.DEV) this.debugFeed.push(m.text); }
-    if (p.rescued) { p.rescued = false; this.ui.feed('Area boys pushed you back onto the road', 'info'); }
+    for (const m of pax.update(dt, p, ctl, limit)) {
+      this.ui.feed(m.text, m.tone);
+      if (m.money) this.audio.click();
+      if (m.spoken && this.save.settings.dialogueVoice) this.nav.speakDialogue(m.spoken);
+      if (import.meta.env.DEV) this.debugFeed.push(m.text);
+    }
+    if (p.rescued) { p.rescued = false; this.ui.feed('Area boys pushed you back onto the road · Park engaged', 'info'); }
     if (p.blockedT > 5 && Math.abs(p.v) < 1 && p.gear === 'D' && this.hintCd <= 0) { this.hintCd = 8; this.ui.toast('Blocked: hold the brake to back out', 2400); }
     for (const imp of p.impacts) {
       const loss = this.damage.apply(imp);
@@ -341,7 +366,7 @@ export class Game implements GameApi {
     const cueKey = nav.icon + nav.text;
     if (cueKey !== this.lastCue) { this.lastCue = cueKey; if (p.onExpressway && nav.text !== 'Continue straight') this.nav.speak(`${nav.text}. ${nav.sub}`); }
 
-    this.audio.setReversing(p.gear === 'R');
+    this.audio.setReversing(p.reversing);
     if (p.blinkOn !== this.lastBlink) { this.lastBlink = p.blinkOn; if (p.blinkOn) this.audio.tick(); }
     this.audio.drive(p.kmh, ctl.throttle, ctl.brake, p.surface === 'bush' || p.surface === 'dirt', engineOn, this.vehicle.type !== 'minivan');
     this.rig.lookBack = this.lookingBack;

@@ -58,7 +58,7 @@ Synthesised with WebAudio: engine (gear-simulated revs), tyre/road noise, off-ro
 ## Map data
 `data/osm/road.json`, `data/osm/places.json` (OSM, ODbL); DEM tiles cached in `data/dem/` (AWS Terrain Tiles); baked `public/data/berger-mowe.json`.
 
-## Characters (test, not yet used in the game)
+## Rigged characters
 | File | What | Source | Licence |
 |---|---|---|---|
 | `public/models/characters/man.glb`, `woman.glb` | Rigged man and woman, each with several garments (shirts, kaftan and fila; blouse, gown, wrapper and gele), hair pieces, and idle, talking, walk, sitting and interact animations. About 1.4 MB and 1.8 MB. The game switches garments on per person and colours them | Built by `tools/blender/build_passenger.py` from Quaternius *Universal Base Characters* and *Universal Animation Library* (free Standard versions), fetched with `tools/assets/fetch-quaternius.mjs` | CC0 |

@@ -57,12 +57,29 @@ export class Navigation {
   speak(text: string) {
     if (!this.voice || text === this.lastSpoken || typeof speechSynthesis === 'undefined') return;
     this.lastSpoken = text;
+    this.say(text, true);
+  }
+
+  /** Speak a passenger line after any current utterance; navigation can still interrupt it. */
+  speakDialogue(text: string) {
+    if (typeof speechSynthesis === 'undefined') return;
+    // drop the line if something is already being said: queued lines pile up and play long after the moment
+    if (speechSynthesis.speaking || speechSynthesis.pending) return;
+    this.say(text, false);
+  }
+
+  stopSpeaking() {
+    if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+  }
+
+  private say(text: string, interrupt: boolean) {
     try {
       const u = new SpeechSynthesisUtterance(text);
       const v = speechSynthesis.getVoices().find((x) => /en-NG/i.test(x.lang)) ?? speechSynthesis.getVoices().find((x) => /^en/i.test(x.lang));
       if (v) u.voice = v;
       u.rate = 1.02; u.volume = 0.9;
-      speechSynthesis.cancel(); speechSynthesis.speak(u);
+      if (interrupt) speechSynthesis.cancel();
+      speechSynthesis.speak(u);
     } catch { /* speech unavailable */ }
   }
 }

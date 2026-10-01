@@ -7,8 +7,13 @@ export interface Settings {
   sound: number; // 0..1
   music: number; // 0..1 (radio arrives later)
   controls: 'buttons' | 'tilt';
+  /** Steering response for touch and tilt controls (0.3..1). */
+  steeringSensitivity: number;
   language: 'en';
   voice: boolean;
+  dialogueVoice: boolean;
+  /** Cap mobile rendering at 30 fps and favor lower-power rendering. */
+  powerSaver: boolean;
   /** Game pace (change spec §3): how fast game time runs and the road goes by. */
   pace: Pace;
   /** Who handles fares: the conductor automatically, or the player (only while stopped). */
@@ -29,7 +34,7 @@ export interface SaveData {
 const KEY = 'trip-ibadan:v1';
 const isMobile = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
 const DEFAULTS: SaveData = {
-  settings: { quality: isMobile ? 'low' : 'high', sound: 0.8, music: 0.6, controls: 'buttons', language: 'en', voice: true, pace: 'normal', fareMode: 'conductor' },
+  settings: { quality: isMobile ? 'low' : 'high', sound: 0.8, music: 0.6, controls: 'buttons', steeringSensitivity: 0.58, language: 'en', voice: true, dialogueVoice: true, powerSaver: isMobile, pace: 'normal', fareMode: 'conductor' },
   selectedVehicle: 'sienna', best: {}, tripsCompleted: 0, wallet: 0, owned: [], stars: {}, discovered: [], selectedTrip: 'ojota-berger',
 };
 

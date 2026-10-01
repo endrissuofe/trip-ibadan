@@ -85,7 +85,6 @@ export class Riders {
         const hw = nb.halfWidth(r.s);
         const inJam = this.world.events.some((e) => e.kind === 'jam' && Math.abs(r.s - (this.world.route.startS + e.km * 1000 + e.lengthM / 2)) < e.lengthM / 2 + 40);
         r.v += ((inJam ? 7 : r.v0) - r.v) * Math.min(1, dt * 1.5);
-        r.s += r.v * dt;
         r.weave -= dt;
         if (r.weave <= 0) {
           const nl = Math.max(1, Math.round((2 * hw) / LANE_W));
@@ -94,14 +93,43 @@ export class Riders {
           r.dTarget = gaps[Math.floor(Math.random() * gaps.length)];
           r.weave = 2 + Math.random() * 4;
         }
+        // Give the bus a wide berth: choose an open lane or the shoulder before
+        // the bike reaches the bus, then brake gently if space is tight.
+        const gap = r.s - p.s;
+        const closing = gap >= 0 ? p.v - r.v : r.v - p.v;
+        const nearPlayer = Math.abs(gap) < 75;
+        const crossesPlayerPath = Math.abs(r.dTarget - p.d) < p.halfWid + 1.15;
+        if (nearPlayer && (closing > 0.5 || crossesPlayerPath)) {
+          const nl = Math.max(1, Math.round((2 * hw) / LANE_W));
+          const candidates = [...Array(nl).keys()].map((k) => -hw + ((k + 0.5) * 2 * hw) / nl);
+          candidates.push(hw + 1.2);
+          candidates.sort((a, b) => {
+            const safeA = Math.abs(a - p.d) - Math.max(0, p.halfWid + 1.15 - Math.abs(a - p.d)) * 2;
+            const safeB = Math.abs(b - p.d) - Math.max(0, p.halfWid + 1.15 - Math.abs(b - p.d)) * 2;
+            return (safeB - Math.abs(b - r.d) * 0.18) - (safeA - Math.abs(a - r.d) * 0.18);
+          });
+          r.dTarget = candidates[0];
+          r.weave = Math.max(r.weave, 1.2);
+          // only a rider coming up BEHIND the bus brakes; one ahead that slowed down would be run into sooner
+          if (gap < 0 && gap > -28 && closing > 0 && Math.abs(r.d - p.d) < p.halfWid + 1.4) {
+            r.v = Math.min(r.v, Math.max(0, p.v - 2.5));
+          }
+        }
+        r.s += r.v * dt;
         r.d += Math.max(-2.2 * dt, Math.min(2.2 * dt, r.dTarget - r.d));
         const w = nb.toWorld(r.s, r.d);
         r.x = w.x; r.z = w.z; r.y = w.y; r.heading = w.heading + Math.atan2(r.dTarget - r.d, 8) * 0.5;
+        r.mesh.rotation.z = Math.max(-0.16, Math.min(0.16, -(r.dTarget - r.d) * 0.035));
         if (r.s < p.s - 260 || r.s > p.s + 1000 || r.s > this.lagosEnd + 200) this.place(r, p);
       } else {
         if (r.si < 0) { if (Math.random() < dt) this.place(r, p); continue; }
         const net = this.world.streets, xs = net.x[r.si], zs = net.z[r.si], ys = net.y[r.si];
-        r.v += (r.v0 - r.v) * Math.min(1, dt);
+        // Slow down when riding TOWARDS the bus. A rider that is moving away from it, or has the bus
+        // behind, keeps going: one that stopped dead within 8 m would block the street for good.
+        const carDistance = Math.hypot(r.x - p.x, r.z - p.z);
+        const towards = (Math.sin(r.heading) * (p.x - r.x) + Math.cos(r.heading) * (p.z - r.z)) / (carDistance || 1);
+        const yieldSpeed = towards > 0.5 ? Math.max(1.5, (carDistance - 8) * 0.55) : r.v0;
+        r.v += (Math.min(r.v0, yieldSpeed) - r.v) * Math.min(1, dt * 2.5);
         let move = r.v * dt;
         while (move > 0) {
           const L = Math.hypot(xs[r.k + 1] - xs[r.k], zs[r.k + 1] - zs[r.k]) || 1;
@@ -121,6 +149,7 @@ export class Riders {
       }
       r.mesh.position.set(r.x, r.y, r.z);
       r.mesh.rotation.y = r.heading;
+      if (r.mode === 'street') r.mesh.rotation.z = 0;
       // collision with the player (rider in the vehicle's local frame)
       r.hitCd -= dt;
       const dx = r.x - p.x, dz = r.z - p.z;

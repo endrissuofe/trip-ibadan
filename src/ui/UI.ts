@@ -475,18 +475,27 @@ export class UI {
       <div class="set"><span>Sound volume</span><input type="range" min="0" max="1" step="0.05" data-s="sound"></div>
       <div class="set"><span>Music volume <span class="muted" style="font-size:12px">(radio coming soon)</span></span><input type="range" min="0" max="1" step="0.05" data-s="music"></div>
       <div class="set"><span>Controls</span><select data-s="controls"><option value="buttons">Touch buttons</option><option value="tilt">Tilt to steer</option></select></div>
+      <div class="set"><span>Phone steering response</span><input type="range" min="0.3" max="1" step="0.05" data-s="steeringSensitivity"></div>
       <div class="set"><span>Game pace <span class="muted" style="font-size:12px">(game time and road speed)</span></span><select data-s="pace">${Object.entries(PACES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join('')}</select></div>
       <div class="set"><span>Fares</span><select data-s="fareMode"><option value="conductor">Conductor collects</option><option value="manual">I collect (when stopped)</option></select></div>
       <div class="set"><span>Voice navigation</span><select data-s="voice"><option value="1">On</option><option value="0">Off</option></select></div>
+      <div class="set"><span>Passenger dialogue audio</span><select data-s="dialogueVoice"><option value="1">On</option><option value="0">Off</option></select></div>
+      <div class="set"><span>Phone power saver <span class="muted" style="font-size:12px">(30 fps)</span></span><select data-s="powerSaver"><option value="1">On</option><option value="0">Off</option></select></div>
       <div class="set"><span>Language</span><select data-s="language"><option value="en">English</option></select></div>
-      <p class="muted" style="font-size:12px">Graphics quality changes tree and house density after the game reloads.</p>
+      <p class="muted" style="font-size:12px">Lower phone steering response softens turns. Power saver lowers frame rate and scene resolution to reduce heat. Graphics quality changes tree and house density after the game reloads.</p>
       <button class="btn primary wide" data-a="save">Save &amp; back</button></div></div>`));
     const q = (k: string) => el.querySelector(`[data-s=${k}]`) as HTMLInputElement & HTMLSelectElement;
     q('quality').value = cur.quality; q('sound').value = String(cur.sound); q('music').value = String(cur.music);
-    q('controls').value = cur.controls; q('voice').value = cur.voice ? '1' : '0'; q('language').value = cur.language;
+    q('controls').value = cur.controls; q('steeringSensitivity').value = String(cur.steeringSensitivity); q('voice').value = cur.voice ? '1' : '0';
+    q('dialogueVoice').value = cur.dialogueVoice ? '1' : '0'; q('powerSaver').value = cur.powerSaver ? '1' : '0'; q('language').value = cur.language;
     q('pace').value = cur.pace; q('fareMode').value = cur.fareMode;
     el.querySelector('[data-a=save]')!.addEventListener('click', async () => {
-      const next: Settings = { quality: q('quality').value as Settings['quality'], sound: +q('sound').value, music: +q('music').value, controls: q('controls').value as Settings['controls'], voice: q('voice').value === '1', language: 'en', pace: q('pace').value as Pace, fareMode: q('fareMode').value as Settings['fareMode'] };
+      const next: Settings = {
+        quality: q('quality').value as Settings['quality'], sound: +q('sound').value, music: +q('music').value,
+        controls: q('controls').value as Settings['controls'], steeringSensitivity: +q('steeringSensitivity').value,
+        voice: q('voice').value === '1', dialogueVoice: q('dialogueVoice').value === '1', powerSaver: q('powerSaver').value === '1',
+        language: 'en', pace: q('pace').value as Pace, fareMode: q('fareMode').value as Settings['fareMode'],
+      };
       if (next.controls === 'tilt') {
         const DOE = DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> };
         if (DOE?.requestPermission) { try { await DOE.requestPermission(); } catch { /* denied */ } }

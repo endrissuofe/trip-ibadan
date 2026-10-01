@@ -65,6 +65,44 @@ export class PartBuilder {
     return this.paint(m, hex(color));
   }
 
+  /** Rounded box with a few profile steps, useful for painted bodywork and concrete edges. */
+  roundedBox(cx: number, cy: number, cz: number, sx: number, sy: number, sz: number, color: string, bevel = 0.12, rotY = 0, segments = 3) {
+    const half = [sx / 2, sy / 2, sz / 2];
+    const r = Math.min(bevel, half[0] * 0.45, half[1] * 0.45, half[2] * 0.45);
+    const steps = Math.max(2, Math.floor(segments));
+    const positions: number[] = [], normals: number[] = [], uvs: number[] = [], indices: number[] = [];
+    // Each face uses row and column axes whose cross product points outwards.
+    const faces: [number, number, number, number][] = [
+      [0, -1, 2, 1], [0, 1, 1, 2], [1, -1, 0, 2],
+      [1, 1, 2, 0], [2, -1, 1, 0], [2, 1, 0, 1],
+    ];
+    for (const [fixed, sign, rowAxis, colAxis] of faces) {
+      const base = positions.length / 3;
+      for (let row = 0; row <= steps; row++) for (let col = 0; col <= steps; col++) {
+        const p = [0, 0, 0];
+        p[fixed] = sign * half[fixed];
+        p[rowAxis] = (row / steps * 2 - 1) * half[rowAxis];
+        p[colAxis] = (col / steps * 2 - 1) * half[colAxis];
+        const q = p.map((v, axis) => Math.max(-half[axis] + r, Math.min(half[axis] - r, v)));
+        const d = p.map((v, axis) => v - q[axis]);
+        const len = Math.hypot(d[0], d[1], d[2]);
+        const rounded = len > 1e-8 ? q.map((v, axis) => v + d[axis] * r / len) : p;
+        positions.push(rounded[0], rounded[1], rounded[2]);
+        uvs.push(col / steps, row / steps);
+        if (len > 1e-8) normals.push(d[0] / len, d[1] / len, d[2] / len);
+        else { const n = [0, 0, 0]; n[fixed] = sign; normals.push(n[0], n[1], n[2]); }
+      }
+      for (let row = 0; row < steps; row++) for (let col = 0; col < steps; col++) {
+        const a = base + row * (steps + 1) + col, b = a + steps + 1;
+        indices.push(a, b, a + 1, a + 1, b, b + 1);
+      }
+    }
+    const vd = new VertexData(); vd.positions = positions; vd.normals = normals; vd.uvs = uvs; vd.indices = indices;
+    const m = new Mesh('p', this.scene); vd.applyToMesh(m, false);
+    m.bakeTransformIntoVertices(Matrix.RotationY(rotY).multiply(Matrix.Translation(cx, cy, cz)));
+    return this.paint(m, hex(color));
+  }
+
   /** Cylinder along the given axis (x: wheels, z: tanks, y: poles/trunks). */
   cylinder(cx: number, cy: number, cz: number, r: number, len: number, color: string, axis: 'x' | 'y' | 'z' = 'x', tess = 12) {
     const m = MeshBuilder.CreateCylinder('p', { diameter: r * 2, height: len, tessellation: tess }, this.scene);
@@ -134,7 +172,13 @@ export class PartBuilder {
   get count() { return this.parts.length; }
 
   build(): Mesh {
-    const m = Mesh.MergeMeshes(this.parts, true, true)!;
+    let m: Mesh;
+    try { m = Mesh.MergeMeshes(this.parts, true, true)!; }
+    catch (e) {
+      // say WHICH model failed and what each part carries; the engine's own message names neither
+      const kinds = [...new Set(this.parts.map((p) => (p.getVerticesDataKinds() ?? []).slice().sort().join(',')))];
+      throw new Error(`PartBuilder "${this.name}": ${(e as Error).message} [${kinds.join(' | ')}]`);
+    }
     m.name = this.name;
     this.parts = [];
     return m;

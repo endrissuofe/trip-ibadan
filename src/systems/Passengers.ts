@@ -37,7 +37,7 @@ export interface Pax {
   stand?: Mesh; seated?: Mesh; label?: Mesh;
 }
 export type PaxPhase = 'loading' | 'riding' | 'stopping' | 'done';
-export interface PaxMsg { text: string; money?: number; tone: 'good' | 'bad' | 'info'; who?: string }
+export interface PaxMsg { text: string; money?: number; tone: 'good' | 'bad' | 'info'; who?: string; spoken?: string }
 
 export interface TxnView {
   name: string; seat: number; dest: string; fare: number;
@@ -668,7 +668,7 @@ export class Passengers {
   // ------------------------------------------------------------------ messages
   private say(intent: Intent, vars: Vars, who: string, tone: PaxMsg['tone']) {
     const text = this.dlg.say(intent, vars);
-    if (text) this.out.push({ text: `${who}: "${text}"`, tone, who });
+    if (text) this.out.push({ text: `${who}: "${text}"`, tone, who, spoken: `${who} says, ${text}` });
   }
   private push(text: string, tone: PaxMsg['tone'], money?: number) { this.out.push({ text, tone, money }); }
 

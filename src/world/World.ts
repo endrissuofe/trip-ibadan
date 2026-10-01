@@ -472,23 +472,23 @@ export class World {
   private buildVegetation() {
     const nb = this.route.nb;
     const pb = new PartBuilder(this.scene, 'palmTree');
-    pb.cylinder(0, 4.5, 0, 0.18, 9, '#6b5a45', 'y', 6);
+    pb.cylinder(0, 4.5, 0, 0.18, 9, '#6b5a45', 'y', 8);
     for (let k = 0; k < 7; k++) {
-      const leaf = MeshBuilder.CreateBox('leaf', { width: 0.9, height: 0.08, depth: 4.2 }, this.scene);
-      leaf.bakeTransformIntoVertices(Matrix.Translation(0, 0, 2).multiply(Matrix.RotationX(0.45)).multiply(Matrix.RotationY((k / 7) * Math.PI * 2)).multiply(Matrix.Translation(0, 9, 0)));
+      const leaf = MeshBuilder.CreateSphere('leaf', { diameter: 1, segments: this.high ? 10 : 7 }, this.scene);
+      leaf.bakeTransformIntoVertices(Matrix.Scaling(0.55, 0.12, 4.2).multiply(Matrix.Translation(0, 0, 2)).multiply(Matrix.RotationX(0.45)).multiply(Matrix.RotationY((k / 7) * Math.PI * 2)).multiply(Matrix.Translation(0, 9, 0)));
       pb.add(leaf, k % 2 ? '#3f6a2a' : '#4f7a30');
     }
     const palmMesh = pb.build();
     const tb2 = new PartBuilder(this.scene, 'broadleaf');
-    tb2.cylinder(0, 2.2, 0, 0.3, 4.4, '#5b4a3a', 'y', 6);
+    tb2.cylinder(0, 2.2, 0, 0.3, 4.4, '#5b4a3a', 'y', 8);
     for (const [x, y, z, r] of [[0, 6, 0, 3.4], [1.6, 5.2, 0.8, 2.4], [-1.4, 5.4, -0.6, 2.5], [0.3, 7.4, -0.4, 2.2]]) {
-      const s = MeshBuilder.CreateIcoSphere('c', { radius: r, subdivisions: 1 }, this.scene); s.bakeTransformIntoVertices(Matrix.Scaling(1, 0.78, 1).multiply(Matrix.Translation(x, y, z)));
+      const s = MeshBuilder.CreateIcoSphere('c', { radius: r, subdivisions: this.high ? 2 : 1 }, this.scene); s.bakeTransformIntoVertices(Matrix.Scaling(1, 0.78, 1).multiply(Matrix.Translation(x, y, z)));
       tb2.add(s, '#3d5e2a');
     }
     const broad = tb2.build();
     const bb = new PartBuilder(this.scene, 'bush');
     for (const [x, z, r] of [[0, 0, 1.4], [1.1, 0.4, 1.0], [-0.9, -0.3, 1.1]]) {
-      const s = MeshBuilder.CreateIcoSphere('b', { radius: r, subdivisions: 1 }, this.scene); s.bakeTransformIntoVertices(Matrix.Scaling(1, 0.7, 1).multiply(Matrix.Translation(x, r * 0.5, z)));
+      const s = MeshBuilder.CreateIcoSphere('b', { radius: r, subdivisions: this.high ? 2 : 1 }, this.scene); s.bakeTransformIntoVertices(Matrix.Scaling(1, 0.7, 1).multiply(Matrix.Translation(x, r * 0.5, z)));
       bb.add(s, '#4e6b32');
     }
     const bush = bb.build();
@@ -571,13 +571,13 @@ export class World {
       const b = new PartBuilder(this.scene, 'house');
       const storeys = v < 5 ? 1 : 2;
       const h = storeys * 3.2;
-      b.box(0, h / 2, 0, 9, h, 7, walls[v % walls.length]);
-      if (v === 7) b.box(0, h + 0.25, 0, 9.4, 0.5, 7.4, '#b2bec3'); // flat-roofed block
+      b.roundedBox(0, h / 2, 0, 9, h, 7, walls[v % walls.length], 0.16);
+      if (v === 7) b.roundedBox(0, h + 0.25, 0, 9.4, 0.5, 7.4, '#b2bec3', 0.12); // flat-roofed block
       else b.prism([[-3.8, h], [0, h + 1.6], [3.8, h]], 9.6, roofs[v % roofs.length]);
       b.box(0, 1.1, 3.51, 1.2, 2.2, 0.05, '#4a3a2a');
       for (let f = 0; f < storeys; f++) for (const x of [-2.8, 2.8]) b.box(x, f * 3.2 + 1.7, 3.51, 1.4, 1.1, 0.05, '#27323a');
       if (v === 5 || v === 6) { b.box(0, 2.6, 4.4, 9, 0.2, 1.8, '#8a8a8a'); b.box(0, 3.4, 3.52, 6, 0.8, 0.05, SHIRTS[v]); } // shop front + awning
-      b.box(0, 0.9, 7.2, 10, 1.8, 0.2, '#cfc6b4'); // fence wall
+      b.roundedBox(0, 0.9, 7.2, 10, 1.8, 0.2, '#cfc6b4', 0.06); // fence wall
       const m = b.build(); m.material = vehicleMaterial(this.scene); m.isVisible = false;
       variants.push(m);
     }
@@ -775,14 +775,23 @@ export class World {
         for (const o of [-3, 3]) { const q = nb.toWorld(s + 12 + o, hw + 6.2); b.box(q.x, q.y + 1.25, q.z, 0.15, 2.5, 0.15, '#9aa0a4'); }
         const bq = nb.toWorld(s + 12, hw + 5.8); b.box(bq.x, bq.y + 0.5, bq.z, 5, 0.12, 0.6, '#6b5a45', bq.heading);
       } else {
-        // motor park: blocks, canopy, parked intercity buses
+        // motor park: low shops, a compact canopy set back from the lane, parked buses
         for (let k = 0; k < 6; k++) {
           const p = nb.toWorld(s - 45 + k * 14, hw + 24);
-          b.box(p.x, p.y + 1.8, p.z, 11, 3.6, 7, k % 2 ? '#e4d2b8' : '#d9d4c8', p.heading);
-          b.box(p.x, p.y + 3.8, p.z, 11.6, 0.3, 7.6, '#8a4b2d', p.heading);
+          b.roundedBox(p.x, p.y + 1.8, p.z, 11, 3.6, 7, k % 2 ? '#e4d2b8' : '#d9d4c8', 0.14, p.heading);
+          b.roundedBox(p.x, p.y + 3.8, p.z, 11.6, 0.3, 7.6, '#8a4b2d', 0.08, p.heading);
         }
-        const c = nb.toWorld(s, hw + 12); b.box(c.x, c.y + 4.2, c.z, 30, 0.3, 9, '#1d5fa8', c.heading);
-        for (const o of [-14, 14]) for (const dd of [8, 16]) { const q = nb.toWorld(s + o, hw + dd); b.box(q.x, q.y + 2.1, q.z, 0.3, 4.2, 0.3, '#9aa0a4'); }
+        const canopyD = hw + 14, c = nb.toWorld(s, canopyD);
+        b.roundedBox(c.x, c.y + 4.08, c.z, 8.4, 0.24, 24, '#577989', 0.08, c.heading);
+        b.box(c.x, c.y + 3.94, c.z, 8.0, 0.04, 23.6, '#c8bda9', c.heading); // light underside
+        for (const along of [-10.5, 10.5]) for (const across of [-3.4, 3.4]) {
+          const q = nb.toWorld(s + along, canopyD + across);
+          b.roundedBox(q.x, q.y + 1.98, q.z, 0.18, 3.96, 0.18, '#777a76', 0.04);
+        }
+        for (const along of [-8, -4, 0, 4, 8]) {
+          const q = nb.toWorld(s + along, canopyD);
+          b.roundedBox(q.x, q.y + 3.86, q.z, 8.0, 0.12, 0.16, '#6b7270', 0.03, q.heading);
+        }
         for (let k = 0; k < 4; k++) {
           const m = buildVehicle(this.scene, k % 2 ? 'minibus' : 'sienna', k % 2 ? '#f2f2ee' : '#b7bcc1', 'parked');
           m.material = vehicleMaterial(this.scene);

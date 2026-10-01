@@ -302,7 +302,10 @@ export class PlayerVehicle {
     if (held && this.tryT > 2 && this.stillT > 2) {
       const lane = nb.toWorld(this.s, hw - 1.8);
       this.x = lane.x; this.z = lane.z; this.heading = lane.heading; this.v = 0; this.steerSm = 0;
-      this.tryT = 0; this.stillT = 0; this.touching = false; this.rescued = true; this.derive();
+      // Stop safely after the tow. Do not leave the player in Reverse or keep the
+      // brake-triggered reverse assist active after the vehicle has been repositioned.
+      this.gear = 'P'; this.autoRev = false; this.brakeHold = 0;
+      this.tryT = 0; this.stillT = 0; this.blockedT = 0; this.touching = false; this.rescued = true; this.derive();
     }
     if (this.s < nb.s[0] + 20 || this.s > nb.length - 20) { this.x = prevX; this.z = prevZ; this.v = 0; this.derive(); }
 
