@@ -52,7 +52,7 @@ M = {
     'glass': mat('glass', (0.04, 0.06, 0.07), rough=0.04, alpha=0.42),
     'black': mat('black_plastic', (0.025, 0.027, 0.03), rough=0.55),
     'rubber': mat('tyre_rubber', (0.018, 0.018, 0.018), rough=0.92),
-    'steel': mat('wheel_steel', (0.66, 0.68, 0.7), metal=0.3, rough=0.35),
+    'steel': mat('wheel_steel', (0.5, 0.48, 0.45), metal=0.3, rough=0.5),
     'chrome': mat('chrome', (0.85, 0.86, 0.88), metal=0.3, rough=0.15),
     'head': mat('headlamp_lens', (0.85, 0.88, 0.9), rough=0.05, emit=(1, 0.97, 0.9), emit_strength=0.4),
     'red': mat('tail_red', (0.55, 0.02, 0.03), rough=0.15, emit=(0.6, 0.02, 0.02), emit_strength=0.3),
@@ -121,9 +121,9 @@ def fix_normals(o):
     bm.to_mesh(o.data); bm.free()
 
 
-def cylinder_x(name, cx, cy, cz, r, width, material, parent=None, verts=32, r2=None):
+def cylinder_x(name, cx, cy, cz, r, width, material, parent=None, verts=32, r2=None, caps=True):
     """Cylinder along game x (wheels, arches)."""
-    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r, radius2=r if r2 is None else r2, depth=width, location=(0, 0, 0))
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=r, radius2=r if r2 is None else r2, depth=width, location=(0, 0, 0), end_fill_type='NGON' if caps else 'NOTHING')
     o = bpy.context.active_object
     o.name = name
     o.rotation_euler = (0, math.pi / 2, 0)   # Blender Z → Blender X (= game −x)

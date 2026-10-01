@@ -5,6 +5,7 @@ Run: python build_van.py --out ../../public/models/vehicles/sienna.glb
 """
 import sys, math
 from lib_vehicle import *
+from wear import detail_materials, weather_body, ensure_uvs
 
 OUT = sys.argv[sys.argv.index('--out') + 1] if '--out' in sys.argv else 'sienna.glb'
 
@@ -19,6 +20,7 @@ AXLE_F, AXLE_R = 1.55, -1.50
 M['paint'] = mat('body_paint_silver', (0.7, 0.72, 0.74), metal=0.2, rough=0.3, coat=0.8)
 M['inner'] = mat('interior_trim_beige', (0.55, 0.52, 0.47), rough=0.85)
 M['fabric'] = mat('seat_fabric_grey', (0.16, 0.16, 0.17), rough=0.95)
+detail_materials(fabric_color=(0.16, 0.16, 0.17))
 M['alloy'] = mat('alloy_wheel', (0.72, 0.74, 0.76), metal=0.3, rough=0.25)
 
 root = bpy.data.objects.new('sienna_root', None); link(root)
@@ -151,7 +153,7 @@ def wheel(name, side, z):
     d.parent = hub; d.location = (0, 0, 0)
     c = cylinder_x(name + '_cap', 0, 0, 0, 0.05, 0.26, M['chrome'], verts=16)
     c.parent = hub; c.location = (0, 0, 0)
-    lin = cylinder_x(name + '_liner', side * (W / 4), WHEEL_R + 0.03, z, 0.455, W / 2 - 0.04, M['black'], verts=32)
+    lin = cylinder_x(name + '_liner', side * (TRACK - 0.13) / 2, WHEEL_R + 0.03, z, 0.455, TRACK - 0.17, M['black'], verts=32)
     boolean(lin, box('liner_cut', side * (W / 4), WHEEL_R - 0.3, z, W, 0.64, 1.2, M['black']))
     for f in lin.data.polygons: f.use_smooth = True
     lin.parent = root
@@ -212,6 +214,8 @@ for z in ROWS:
         k += 1
         empty(f'seat_{k:02d}', x, 0.62, z, root)
 
-merge(root, keep={'body'})
+ensure_uvs(list(bpy.data.objects))
+weather_body(body, paint=(0.7, 0.72, 0.74), rough=0.3, metal=0.2, coat=0.8, amount=0.5, rust=0.0, axles=(AXLE_F, AXLE_R), wheel_r=WHEEL_R, window_y=WIN_Y0, name='sienna_body')
+merge(root, keep={'body', 'sienna_body_inner'})
 merge(interior, keep={'steering_wheel'})
 export(OUT)

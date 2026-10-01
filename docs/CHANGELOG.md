@@ -32,6 +32,7 @@ Implements the P0 items of the *Developer Change Specification r1.0* on the exis
 
 ### Models
 - **First real 3D vehicle:** a Hiace-style 14-seat minibus built in Blender from script (`tools/blender/`), loaded automatically for the Toyota Hiace, and a **Sienna-style minivan** for the Toyota Sienna (the starting vehicle). Brake, reverse and indicator lights line up with each model's lamp lenses and are sized to fit them.
+- **Worn-in look:** both vehicles carry red-brown laterite dust (heaviest low down and around the wheel arches), rain streaks under the windows, grime in creases and slight sun fade; the bus also has a few rust spots. Tyres have tread, seats have woven fabric, floors have ribbed rubber mats, and the bus wheels have wheel nuts.
 - Optional real GLB vehicles via `public/models/manifest.json`, with lamps snapping to the model's named nodes. Nothing is downloaded unless a model is listed.
 
 ### Other

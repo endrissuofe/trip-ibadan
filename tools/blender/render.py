@@ -47,4 +47,6 @@ views = sys.argv[3].split(',') if len(sys.argv) > 3 else ['front', 'rear', 'side
 if 'front' in views: shoot('front', (4.2, 1.7, 5.6), (0, 1.0, 0.3))
 if 'rear' in views: shoot('rear', (-3.8, 2.0, -5.6), (0, 1.0, -0.4))
 if 'side' in views: shoot('side', (7.5, 1.3, 0.2), (0, 1.05, 0.0), lens=40)
+if 'wheel' in views: shoot('wheel', (1.9, 0.6, 2.6), (0.85, 0.35, 1.5), lens=50)
+if 'seats' in views: shoot('seats', (0.6, 1.25, 0.9), (0.0, 0.55, -0.6), lens=28)
 if 'interior' in views: shoot('interior', (0.0, 1.9, 1.75), (0, 0.7, -2.2), lens=18)
