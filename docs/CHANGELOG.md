@@ -36,6 +36,12 @@ Implements the P0 items of the *Developer Change Specification r1.0* on the exis
 - **Worn-in look:** both vehicles carry red-brown laterite dust (heaviest low down and around the wheel arches), rain streaks under the windows, grime in creases and slight sun fade; the bus also has a few rust spots. Tyres have tread, seats have woven fabric, floors have ribbed rubber mats, and the bus wheels have wheel nuts.
 - Optional real GLB vehicles via `public/models/manifest.json`, with lamps snapping to the model's named nodes. Nothing is downloaded unless a model is listed.
 
+### Roadside scenery
+- **New roadside kit built in Blender** (`tools/blender/build_roadside.py`, loaded from `public/models/scenery/roadside.glb`): kiosks with soft-drink crates and pure water, bukas with pots and benches, vulcanizers with compressor and tyres, POS stands, umbrella stalls, bus shelters, a petrol station, billboards, church signs, water tanks on stands, power poles with sagging wires, open and slab-covered drains, unfinished block buildings with rebar, sand piles, jerrycans, tyre piles, elephant grass and plantain. All shop names, brands and adverts are made up (MAMA TOLU, IYA BASIRAT, KOLA OIL, NaijaNet 5G, Ofada Gold).
+- **Placed from real data:** how built-up each stretch is comes from the real street density beside the road and the distance to the real stops. Shops crowd the kerb around Berger, Kara, Magboro, Arepo, Ibafo and Mowe and wherever people live; open stretches get tall grass, plantain and half-built houses (more of them in Ogun). Open drains and power lines follow the town kerb, with gaps where streets join. Extra petrol stations only go on long stretches with no real one nearby.
+- Nothing is placed on bridges, interchange ramps, footbridges, streets, bus-stop bays or the far carriageway. Buildings, stalls, poles and billboards are solid; grass and plantain are not.
+- Everything is batched per 1.5 km, so it adds roughly 100 draw calls in the busiest views and about 1.5 s to loading.
+
 ### Other
 - A delivery rider riding into your parked vehicle no longer counts as you knocking them down.
 - Traffic no longer rear-ends the vehicle while it's parked at the park loading passengers (this could cost up to 40% condition before the trip started).

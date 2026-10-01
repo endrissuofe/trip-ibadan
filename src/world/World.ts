@@ -18,6 +18,7 @@ import { buildPerson, SHIRTS } from './props';
 import { meshFrom, gridIndices, PartBuilder } from './geo';
 import { asphaltTexture, groundTexture, signTexture, dirtTexture } from './textures';
 import { buildVehicle, vehicleMaterial } from './models';
+import { buildRoadside, RoadsideStats } from './Roadside';
 
 export interface Obstacle { s: number; d: number; len: number; width: number; kind: string }
 export interface Closure { s0: number; s1: number; dMax: number; label: string } // road narrowed: d must stay < dMax
@@ -50,6 +51,8 @@ export class World {
   readonly stopBays = new Map<string, StandardMaterial>();
   private water: { x: number; z: number; half: number; y: number }[] = [];
   private rnd = mulberry(20260930);
+  /** What the roadside kit placed (null if the kit isn't installed). */
+  roadside: RoadsideStats | null = null;
 
   constructor(readonly scene: Scene, readonly route: Route, readonly quality: Quality) {
     const nb = route.nb, sb = route.sb;
@@ -158,6 +161,8 @@ export class World {
     this.buildEvents();
     progress(0.76, 'Building neighbourhoods');  await tick(); tPrev = performance.now();
     this.buildHouses();
+    progress(0.82, 'Setting up roadside shops');  await tick(); tPrev = performance.now();
+    this.roadside = await buildRoadside(this);
     this.buildVegetation();
     this.buildLights();
     progress(0.9, 'Putting up signs');  await tick(); tPrev = performance.now();

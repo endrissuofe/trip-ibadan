@@ -32,6 +32,12 @@ What is simulated rather than physically or geographically accurate.
 - **Dialogue is text only** (no voices). Yoruba lines should be checked by a native speaker.
 - The Sienna now seats 6 passengers because the conductor takes the front seat.
 
+## Roadside scenery
+- **Roadside shops, stalls, billboards and poles are representative**, placed by rule from street density and stop positions, not from imagery of the real roadside. Names, brands and adverts are fictional.
+- The open drain is drawn at ground level (the terrain isn't cut), so it reads as a dark channel between two concrete lips rather than a real trench.
+- Under flyovers and around interchange ramps the roadside is left empty, because the ramps aren't solid; real traders often set up there.
+- Shops have no people yet, and the petrol station forecourt is solid (you can't drive in to buy fuel).
+
 ## Driving / systems
 - **Vehicle physics** is an arcade-leaning free-driving model (kinematic steering, no tyre slip or suspension). Gears are P/R/N/D (automatic); there is no manual gearbox. The map ends 318 m either side of the expressway, because terrain is only baked that far.
 - **Fuel** consumption is scaled ×10 (`FUEL_GAME_SCALE`) per real metre driven, so the 24 km Ojota → Mowe run uses about 35–50% of a tank whatever the pace setting. Real consumption would be about 4%.

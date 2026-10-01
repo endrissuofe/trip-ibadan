@@ -1,5 +1,5 @@
 {
-  "_comment": "List real GLB models here. Paths are relative to public/models/. Example: \"sienna\": { \"file\": \"vehicles/sienna.glb\" }. See docs/ASSET-CONTRACT.md.",
+  "_comment": "List real GLB models here. Paths are relative to public/models/. Example: \"sienna\": { \"file\": \"vehicles/sienna.glb\" }. See docs/ASSET-CONTRACT.md. Scenery kits go under \"scenery\".",
   "vehicles": {
     "hiace": {
       "file": "vehicles/hiace.glb"
@@ -8,5 +8,10 @@
       "file": "vehicles/sienna.glb"
     }
   },
-  "characters": []
+  "characters": [],
+  "scenery": {
+    "roadside": {
+      "file": "scenery/roadside.glb"
+    }
+  }
 }

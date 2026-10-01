@@ -7,7 +7,7 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 
 export interface ModelEntry { file: string; scale?: number; yaw?: number }
-export interface AssetManifest { vehicles: Record<string, ModelEntry>; characters: ModelEntry[] }
+export interface AssetManifest { vehicles: Record<string, ModelEntry>; characters: ModelEntry[]; scenery?: Record<string, ModelEntry> }
 
 let manifestP: Promise<AssetManifest> | null = null;
 
@@ -50,6 +50,40 @@ export async function loadVehicleModel(scene: Scene, vehicleId: string, url?: st
     return { root, nodes };
   } catch (e) {
     console.warn(`Model for ${vehicleId} failed to load; using the procedural vehicle.`, e);
+    return null;
+  }
+}
+
+/**
+ * Load a scenery kit (e.g. the roadside kit) and return its prototypes, keyed by name without the
+ * `proto_` prefix. Each prototype is a list of hidden template meshes (one per material) with the
+ * glTF root transform baked in, so they can be thin-instanced directly in game space.
+ */
+export async function loadKit(scene: Scene, kitId: string): Promise<Map<string, Mesh[]> | null> {
+  const entry = (await loadManifest()).scenery?.[kitId];
+  if (!entry) return null;
+  try {
+    await import('@babylonjs/loaders/glTF');
+    const { ImportMeshAsync } = await import('@babylonjs/core/Loading/sceneLoader');
+    const res = await ImportMeshAsync(`${import.meta.env.BASE_URL}models/${entry.file}`, scene, { pluginExtension: '.glb' });
+    const protos = new Map<string, Mesh[]>();
+    const owner = (n: TransformNode | null): string | null => { for (; n; n = n.parent as TransformNode | null) if (n.name.startsWith('proto_')) return n.name.slice(6).replace(/_primitive\d+$/, ''); return null; };
+    for (const m of res.meshes) {
+      if (!(m instanceof Mesh) || !m.getTotalVertices()) continue;
+      const name = owner(m);
+      if (!name) continue;
+      const wm = m.computeWorldMatrix(true).clone();
+      m.parent = null; m.position.setAll(0); m.rotationQuaternion = null; m.rotation.setAll(0); m.scaling.setAll(1);
+      m.bakeTransformIntoVertices(wm); // flips winding when the glTF handedness flip has a negative determinant
+      m.isVisible = false; m.isPickable = false;
+      let list = protos.get(name); if (!list) protos.set(name, (list = []));
+      list.push(m);
+    }
+    for (const m of res.meshes) if (!(m instanceof Mesh) || !m.getTotalVertices()) m.dispose();
+    for (const t of res.transformNodes) t.dispose();
+    return protos;
+  } catch (e) {
+    console.warn(`Scenery kit ${kitId} failed to load; the roadside stays bare.`, e);
     return null;
   }
 }

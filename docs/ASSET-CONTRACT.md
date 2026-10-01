@@ -44,6 +44,10 @@ Empty nodes (or meshes) with these exact names. Items marked ✅ are already use
 
 Until the "next" items are wired, seats and cameras come from `src/world/interior.ts` (`cabinLayout`). Keep model seat positions close to those, or send the model and we'll read them from the nodes.
 
+## Scenery kits
+
+List under `"scenery"` in the manifest, e.g. `"roadside": { "file": "scenery/roadside.glb" }`. One object per prototype, named `proto_<name>`, built at the origin on the ground with its **front facing +Z** (the side that should face the road). `src/world/Roadside.ts` places the roadside kit; it expects these names: `kiosk`, `buka`, `vulcanizer`, `pos_stand`, `umbrella_stall`, `shelter`, `station`, `billboard_network`, `billboard_rice`, `billboard_safety`, `church_sign`, `water_tank`, `power_pole` (cross-arm across the road, insulators 8.6 m up), `drain` and `drain_covered` (4 m long, along Z, top at ground level), `unfinished`, `grass`, `plantain`, `jerrycans`, `tyre_pile`, `sand_pile`. A missing piece is simply skipped. Keep each piece small (a few hundred triangles) because they are repeated thousands of times; keep sign faces a few centimetres in front of their backing so they don't flicker at distance.
+
 ## Characters
 
 - **GLB, rigged humanoid** (Mixamo-compatible skeleton is fine), metres, +Z forward, origin at the feet.

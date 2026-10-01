@@ -17,6 +17,7 @@ Every asset is procedural or open data. There are **no third-party model, textur
 | File | What | Source | Licence |
 |---|---|---|---|
 | `vehicles/hiace.glb` | Hiace-style 14-seat minibus: unbadged, white with Lagos–Ibadan livery, roof rack with luggage, sliding door, interior with seats, named lamp/seat/camera nodes | Built for this project from script (`tools/blender/build_bus.py`) | Project-owned |
+| `scenery/roadside.glb` | Roadside kit, 21 pieces (~10k triangles in total): kiosk, buka, vulcanizer, POS stand, umbrella stall, bus shelter, petrol station, 3 billboards, church sign, water tank, power pole, open and covered drain, unfinished building, elephant grass, plantain, jerrycans, tyre pile, sand pile. Fictional names and adverts only | Built for this project from script (`tools/blender/build_roadside.py`, textures from `kit_textures.py`) | Project-owned |
 | `vehicles/sienna.glb` | Sienna-style 8-seat minivan: unbadged, silver, sliding doors both sides, roof rails with a bag, alloy wheels, interior with front seats and two benches, named lamp/seat/camera nodes | Built for this project from script (`tools/blender/build_van.py`) | Project-owned |
 
 ## People (`src/world/people.ts`)
@@ -26,7 +27,7 @@ Procedural passengers, conductor and bystanders built from a random `Look`: seve
 Cockpit and cabin shells: floor, trim, pillars, roof lining, seats with headrests, dashboard with gauges, steering column and wheel.
 
 ## Buildings / roadside
-Bungalow and two-storey house variants with rust/grey roofs (6), Mowe motor park blocks, palm, broadleaf tree, bush, median street light, cone, road-works boards, hazard triangle, police officers (simple figures).
+Roadside kit from `scenery/roadside.glb`, placed by `src/world/Roadside.ts` (see above). Procedural: bungalow and two-storey house variants with rust/grey roofs (6), Mowe motor park blocks, palm, broadleaf tree, bush, median street light, cone, road-works boards, hazard triangle, police officers (simple figures).
 
 ## Road assets
 Asphalt surfaces (both carriageways, ramps), lane and edge markings, New Jersey median barrier, bridge parapets, deck slabs, piers, footbridges with stair towers, water plane, green direction signs, overhead Mowe gantry, road-works and checkpoint signs, blue destination bay.
