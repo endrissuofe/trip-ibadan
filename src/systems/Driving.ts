@@ -321,6 +321,13 @@ export class PlayerVehicle {
     const brakes = this.mesh.getChildMeshes(true).filter((x) => x.name === 'lamp_brake') as Mesh[];
     snap(brakes, ['light_brake_L', 'light_brake_R']);
     snap(this.reverseLamps, ['light_reverse_L', 'light_reverse_R']);
+    // model lamps are smaller than the stand-in's: shrink the glow planes to fit the lenses
+    if (m.nodes.has('light_brake_L')) for (const b of brakes) b.scaling.set(0.55, 0.85, 1);
+    for (const l of this.indicatorLamps) {
+      const front = l.m.rotation.y !== 0;
+      const n = m.nodes.get(`indicator_${front ? 'F' : 'R'}${l.side < 0 ? 'L' : 'R'}`);
+      if (n) { l.m.position.copyFrom(localOf(n)); l.m.scaling.set(0.9, 0.9, 1); }
+    }
   }
   get interiorView() { return this.interiorOn; }
 
@@ -374,11 +381,12 @@ export class PlayerVehicle {
   private syncLights() {
     const on = this.braking;
     this.brakeMat.emissiveColor.set(on ? 1 : 0.35, on ? 0.08 : 0.02, on ? 0.08 : 0.03);
-    for (const r of this.reverseLamps) r.isVisible = this.gear === 'R' && this.mesh.isVisible;
+    const outside = !this.interiorOn;
+    for (const r of this.reverseLamps) r.isVisible = this.gear === 'R' && outside;
     const ind = this.indicator;
     for (const l of this.indicatorLamps) {
       const want = ind === 'hazard' || (ind === 'left' && l.side === -1) || (ind === 'right' && l.side === 1);
-      l.m.isVisible = want && this.blinkOn && this.mesh.isVisible;
+      l.m.isVisible = want && this.blinkOn && outside;
     }
   }
   /** Toggle an indicator (pressing the same side again turns it off). */

@@ -9,6 +9,8 @@ The game runs on procedural stand-ins today. Real models drop in without code ch
 }
 ```
 
+A worked example is `tools/blender/build_bus.py`, which produces `vehicles/hiace.glb` with every node below.
+
 The key is the vehicle id from `src/data/vehicles.ts` (`sienna`, `bus`, `hiace`, `coaster`, `luxury`). If a file is missing or fails to load, the procedural vehicle is used and a warning is logged.
 
 ## Vehicles: format
@@ -26,7 +28,7 @@ Empty nodes (or meshes) with these exact names. Items marked ✅ are already use
 |---|---|---|
 | `light_brake_L`, `light_brake_R` | Brake lamps snap here | ✅ |
 | `light_reverse_L`, `light_reverse_R` | Reverse lamps snap here | ✅ |
-| `indicator_FL`, `indicator_FR`, `indicator_RL`, `indicator_RR` | Turn indicators | next |
+| `indicator_FL`, `indicator_FR`, `indicator_RL`, `indicator_RR` | Turn indicators snap here | ✅ |
 | `headlight_L`, `headlight_R` | Night lighting | next |
 | `driver_cam` | Driver's eye point | next |
 | `cabin_cam` | Passenger-compartment camera | next |

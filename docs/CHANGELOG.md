@@ -31,6 +31,7 @@ Implements the P0 items of the *Developer Change Specification r1.0* on the exis
 - New procedural people: faces, hair (low cut, afro, braids, bun), headwear (gele, fila, scarf, cap), everyday Nigerian clothing, skin-tone, age, build and gender-presentation variety; walking, seated and conductor figures with moving arms and legs. These are stand-ins for rigged photoreal characters (see `docs/ASSET-CONTRACT.md`).
 
 ### Models
+- **First real 3D vehicle:** a Hiace-style 14-seat minibus built in Blender from script (`tools/blender/`), loaded automatically for the Toyota Hiace. Brake, reverse and indicator lights line up with its lamp lenses.
 - Optional real GLB vehicles via `public/models/manifest.json`, with lamps snapping to the model's named nodes. Nothing is downloaded unless a model is listed.
 
 ### Other
